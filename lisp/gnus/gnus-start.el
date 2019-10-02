@@ -108,7 +108,7 @@ servers have already reported with those Gnus already knows, either alive
 or killed.
 
 When any of the following are true, `gnus-find-new-newsgroups' will instead
-ask the servers (primary, secondary, and archive servers) to list new
+ask the servers (including the archive server) to list new
 groups since the last time it checked:
   1. This variable is `ask-server'.
   2. This variable is a list of select methods (see below).
@@ -120,8 +120,7 @@ Thus, if this variable is `ask-server' or a list of select methods or
 longer necessary, so you could safely set `gnus-save-killed-list' to nil.
 
 This variable can be a list of select methods which Gnus will query with
-the `ask-server' method in addition to the primary, secondary, and archive
-servers.
+the `ask-server' method in addition to the archive server.
 
 E.g.:
   (setq gnus-check-new-newsgroups
@@ -1177,8 +1176,6 @@ for new groups, and subscribe the new groups as zombies."
 	 gnus-override-subscribe-method)
     (unless gnus-killed-hashtb
       (gnus-make-hashtable-from-killed))
-    ;; Go through both primary and secondary select methods and
-    ;; request new newsgroups.
     (while (setq method (gnus-server-get-method nil (pop methods)))
       (setq new-newsgroups nil
 	    gnus-override-subscribe-method method)
@@ -1652,8 +1649,8 @@ backend check whether the group actually exists."
 	  (when (setq entry (gnus-group-entry group))
 	    (setcar entry t)))))
 
-    ;; Sort the methods based so that the primary and secondary
-    ;; methods come first.  This is done for legacy reasons to try to
+    ;; Sort the methods based on their ordering in `gnus-select-methods'.
+    ;; This is done for legacy reasons to try to
     ;; ensure that side-effect behavior doesn't change from previous
     ;; Gnus versions.
     (setq type-cache
@@ -1676,8 +1673,7 @@ backend check whether the group actually exists."
 	      (setcar elem method))
 	    (push (list method 'ok) methods)))))
 
-    ;; If we have primary/secondary select methods, but no groups from
-    ;; them, we still want to issue a retrieval request from them.
+    ;; For methods with no groups to update, we still request-list if supported.
     (unless dont-connect
       (dolist (method gnus-select-methods)
 	(when (and (not (assoc method type-cache))
