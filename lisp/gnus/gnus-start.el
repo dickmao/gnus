@@ -1639,10 +1639,10 @@ backend check whether the group actually exists."
 	      type-cache))
       ;; Only add groups that need updating.
       (if (or (and foreign-level (null (numberp foreign-level)))
-	   (funcall (if one-level #'= #'<=) (gnus-info-level info)
-		    (if (eq (cadr method-group-list) 'foreign)
-			foreign-level
-		      alevel)))
+	      (funcall (if one-level #'= #'<=) (gnus-info-level info)
+		       (if (eq (cadr method-group-list) 'foreign)
+			   foreign-level
+		         alevel)))
 	  (setcar (nthcdr 2 method-group-list)
 		  (cons info (nth 2 method-group-list)))
 	;; The group is inactive, so we nix out the number of unread articles.
