@@ -1676,15 +1676,6 @@ backend check whether the group actually exists."
 	      (setcar elem method))
 	    (push (list method 'ok) methods)))))
 
-    ;; If we have primary/secondary select methods, but no groups from
-    ;; them, we still want to issue a retrieval request from them.
-    (unless dont-connect
-      (dolist (method gnus-select-methods)
-	(when (and (not (assoc method type-cache))
-		   (gnus-check-backend-function 'request-list (car method)))
-	  (with-current-buffer nntp-server-buffer
-	    (gnus-read-active-file-1 method nil)))))
-
     ;; Clear out all the early methods.
     (dolist (elem type-cache)
       (cl-destructuring-bind (method method-type infos dummy) elem
@@ -1700,7 +1691,7 @@ backend check whether the group actually exists."
 	      ;; Just mark this server as "cleared".
 	      (gnus-retrieve-group-data-early method nil))))))
 
-    ;; Start early async retrieval of data.
+    ;; Start early synchronous retrieval of data.
     (let ((done-methods nil)
 	  sanity-spec)
       (dolist (elem type-cache)
@@ -1732,6 +1723,15 @@ backend check whether the group actually exists."
 		;; can pass it to -finish later.
 		(setcar (nthcdr 3 elem)
 			(gnus-retrieve-group-data-early method infos))))))))
+
+    ;; If we have primary/secondary select methods, but no groups from
+    ;; them, we still want to issue a retrieval request from them.
+    (unless dont-connect
+      (dolist (method gnus-select-methods)
+	(when (and (not (assoc method type-cache))
+		   (gnus-check-backend-function 'request-list (car method)))
+	  (with-current-buffer nntp-server-buffer
+	    (gnus-read-active-file-1 method nil)))))
 
     ;; Do the rest of the retrieval.
     (dolist (elem type-cache)
@@ -2041,9 +2041,7 @@ The info element is shared with the same element of
     (gnus-message 5 "%s" mesg)
     (when (gnus-check-server method)
       ;; Request that the backend scan its incoming messages.
-      (when (and (or (and gnus-agent
-			  (gnus-online method))
-		     (not gnus-agent))
+      (when (and (or (not gnus-agent) (gnus-online method))
 		 (gnus-check-backend-function 'request-scan (car method)))
 	(gnus-request-scan nil method))
       (cond
