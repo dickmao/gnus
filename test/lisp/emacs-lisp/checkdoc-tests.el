@@ -140,20 +140,4 @@ See the comments in Bug#24998."
     (should (looking-at-p "\"baz\")"))
     (should-not (checkdoc-next-docstring))))
 
-(ert-deftest checkdoc-tests--cl-defun ()
-  "Identify formal arguments from arbitary lisp code."
-  (with-temp-buffer
-    (let ((checkdoc-autofix-flag 'never))
-      (emacs-lisp-mode)
-      (insert "(cl-defun foo(&key bar &aux (baz (baz bar))) \"BAR BAZ.\")")
-      (should-not (checkdoc-defun)))))
-
-(ert-deftest checkdoc-tests--cl-defmethod ()
-  "Identify formal arguments from object types."
-  (with-temp-buffer
-    (let ((checkdoc-autofix-flag 'never))
-      (emacs-lisp-mode)
-      (insert "(cl-defmethod foo((a list)) \"Return A.\")")
-      (should-not (checkdoc-defun)))))
-
 ;;; checkdoc-tests.el ends here
