@@ -1176,13 +1176,14 @@ for new groups, and subscribe the new groups as zombies."
 (defun gnus-ask-server-for-new-groups ()
   (let* ((new-date (message-make-date))
 	 (date (or gnus-newsrc-last-checked-date new-date))
-	 (methods (nconc
-                   (when (gnus-archive-server-wanted-p)
-                     (list "archive"))
-                   (append
-                    (and (consp gnus-check-new-newsgroups)
-                         gnus-check-new-newsgroups)
-                    gnus-select-methods)))
+	 (methods (cons gnus-select-method
+			(nconc
+			 (when (gnus-archive-server-wanted-p)
+			   (list "archive"))
+			 (append
+			  (and (consp gnus-check-new-newsgroups)
+			       gnus-check-new-newsgroups)
+			  gnus-secondary-select-methods))))
 	 (groups 0)
 	 group new-newsgroups got-new method hashtb
 	 gnus-override-subscribe-method)
@@ -1702,6 +1703,16 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'
 	      (setcar elem method))
 	    (push (list method 'ok) methods)))))
 
+    ;; If we have primary/secondary select methods, but no groups from
+    ;; them, we still want to issue a retrieval request from them.
+    (unless dont-connect
+      (dolist (method (cons gnus-select-method
+			    gnus-secondary-select-methods))
+	(when (and (not (assoc method type-cache))
+		   (gnus-check-backend-function 'request-list (car method)))
+	  (with-current-buffer nntp-server-buffer
+	    (gnus-read-active-file-1 method nil)))))
+
     ;; Clear out all the early methods.
     (dolist (elem type-cache)
       (cl-destructuring-bind (method method-type infos dummy) elem
@@ -1784,13 +1795,14 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'
    ;; Get info for virtual groups last.
    ((eq (car method) 'nnvirtual)
     200)
-   ;; Compute the rank of the method based on where they
-   ;; are in the select list.
-   ((or (eq type 'primary)
-        (eq type 'secondary))
-    (let ((i 1))
+   ((eq type 'primary)
+    1)
+   ;; Compute the rank of the secondary methods based on where they
+   ;; are in the secondary select list.
+   ((eq type 'secondary)
+    (let ((i 2))
       (cl-block nil
-	(cl-dolist (smethod gnus-select-methods)
+	(cl-dolist (smethod gnus-secondary-select-methods)
 	  (when (equal method smethod)
 	    (cl-return i))
 	  (cl-incf i))
@@ -2032,12 +2044,10 @@ The info element is shared with the same element of
 	   (if (and (not not-native)
 		    (gnus-check-server gnus-select-method))
 	       ;; The native server is available.
-               gnus-select-methods
+	       (cons gnus-select-method gnus-secondary-select-methods)
 	     ;; The native server is down, so we just do the
 	     ;; secondary ones.
-             (cl-remove-if
-              (lambda (method) (gnus-method-equal method gnus-select-method))
-              gnus-select-methods))
+	     gnus-secondary-select-methods)
 	   ;; Also read from the archive server.
 	   (when (gnus-archive-server-wanted-p)
 	     (list "archive")))))
@@ -3095,10 +3105,11 @@ SPECIFIC-VARIABLES, or those in `gnus-variable-list'."
 ;;;
 
 (defun gnus-read-all-descriptions-files ()
-  (let ((methods (nconc
-                  (when (gnus-archive-server-wanted-p)
-                    (list "archive"))
-                  gnus-select-methods)))
+  (let ((methods (cons gnus-select-method
+		       (nconc
+			(when (gnus-archive-server-wanted-p)
+			  (list "archive"))
+			gnus-secondary-select-methods))))
     (while methods
       (gnus-read-descriptions-file (car methods))
       (setq methods (cdr methods)))
