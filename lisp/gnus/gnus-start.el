@@ -1590,9 +1590,12 @@ backend check whether the group actually exists."
 	(setcar (gnus-group-entry (gnus-info-group info)) num))
       num)))
 
-;; Go through `gnus-newsrc-alist' and compare with `gnus-active-hashtb'
-;; and compute how many unread articles there are in each group.
+(defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
+  "Updating or displaying state of unread articles are critical sections.")
+
 (defun gnus-get-unread-articles (&optional level dont-connect one-level)
+  "Go through `gnus-newsrc-alist' and compare with `gnus-active-hashtb'
+  and compute how many unread articles there are in each group."
   (setq gnus-server-method-cache nil)
   (require 'gnus-agent)
   (let* ((newsrc (cdr gnus-newsrc-alist))
@@ -1751,20 +1754,18 @@ backend check whether the group actually exists."
 		   (not (gnus-method-denied-p method)))
 	  (let* ((updatep (gnus-check-backend-function
                            'request-update-info (car method)))
-                 (read-thread (gnus-maybe-thread
+                 (read-thread (gnus-maybe-thread gnus-mutex-get-unread-articles
                                #'gnus-read-active-for-groups method infos early-data))
-                 (process-thread (gnus-maybe-thread
+                 (process-thread (gnus-maybe-thread gnus-mutex-get-unread-articles
                                    (lambda (infos* updatep*)
                                      (mapc (lambda (info)
                                              (gnus-get-unread-articles-in-group
                                               info
                                               (gnus-active (gnus-info-group info))
                                               updatep*))
-                                           infos*))
-                                   infos updatep)))
-
-))))
-    (gnus-message 6 "Checking new news...done")))
+                                           infos*)
+                                     (gnus-message 6 "Checking new news...done"))
+                                   infos updatep)))))))))
 
 (defun gnus-method-rank (type method)
   (cond
@@ -1786,12 +1787,17 @@ backend check whether the group actually exists."
    (t
     100)))
 
-(defmacro gnus-maybe-thread (fn &rest args)
-  "Depending on `gnus-threaded-read-active-for-groups', wrap FN ARGS in `make-thread'."
+(defmacro gnus-maybe-thread (mtx fn &rest args)
+  "Depending on `gnus-threaded-read-active-for-groups', make a thread.
+
+MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'."
   (declare (indent 0))
   (if gnus-threaded-read-active-for-groups
-      `(make-thread (apply #'apply-partially ,fn ,args))
-    `(apply ,fn ,args)))
+      `(make-thread
+        (lambda ()
+          ,(append (if (eval mtx) (list 'with-mutex mtx) (list 'prog1))
+                   (list (list 'apply fn (list 'quote args))))))
+    `(apply ,fn (quote ,args))))
 
 (defun gnus-read-active-for-groups (method infos early-data)
   (with-current-buffer nntp-server-buffer
