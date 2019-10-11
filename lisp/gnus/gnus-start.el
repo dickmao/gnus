@@ -1590,6 +1590,18 @@ backend check whether the group actually exists."
 	(setcar (gnus-group-entry (gnus-info-group info)) num))
       num)))
 
+(defmacro gnus-maybe-thread (mtx fn &rest args)
+  "Depending on `gnus-threaded-read-active-for-groups', make a thread.
+
+MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'."
+  (declare (indent 0))
+  (if gnus-threaded-read-active-for-groups
+      `(make-thread
+        (lambda ()
+          ,(append (if (eval mtx) (list 'with-mutex mtx) (list 'prog1))
+                   (list (list 'apply fn (list 'quote args))))))
+    `(apply ,fn (quote ,args))))
+
 (defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
   "Updating or displaying state of unread articles are critical sections.")
 
@@ -1786,18 +1798,6 @@ backend check whether the group actually exists."
    ;; Just say that all foreign groups have the same rank.
    (t
     100)))
-
-(defmacro gnus-maybe-thread (mtx fn &rest args)
-  "Depending on `gnus-threaded-read-active-for-groups', make a thread.
-
-MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'."
-  (declare (indent 0))
-  (if gnus-threaded-read-active-for-groups
-      `(make-thread
-        (lambda ()
-          ,(append (if (eval mtx) (list 'with-mutex mtx) (list 'prog1))
-                   (list (list 'apply fn (list 'quote args))))))
-    `(apply ,fn (quote ,args))))
 
 (defun gnus-read-active-for-groups (method infos early-data)
   (with-current-buffer nntp-server-buffer
