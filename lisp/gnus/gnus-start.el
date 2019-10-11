@@ -377,6 +377,17 @@ does not affect old (already subscribed) newsgroups."
   :type '(choice regexp
 		 (const :tag "none" nil)))
 
+(defcustom gnus-threaded-read-active-for-groups nil
+  "Instantiate a parallel thread for `gnus-read-active-for-groups' which encapsulates
+most of the network retrieval when `gnus-group-get-new-news' is run."
+  :group 'gnus-start
+  :type 'boolean
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (when value (unless (featurep 'threads)
+                       (set-default symbol nil)
+                       (gnus-message 5 "Threads unsupported")))))
+
 (defcustom gnus-modtime-botch nil
   "Non-nil means .newsrc should be deleted prior to save.
 Its use is due to the bogus appearance that .newsrc was modified on
@@ -1579,7 +1590,7 @@ backend check whether the group actually exists."
 	(setcar (gnus-group-entry (gnus-info-group info)) num))
       num)))
 
-;; Go though `gnus-newsrc-alist' and compare with `gnus-active-hashtb'
+;; Go through `gnus-newsrc-alist' and compare with `gnus-active-hashtb'
 ;; and compute how many unread articles there are in each group.
 (defun gnus-get-unread-articles (&optional level dont-connect one-level)
   (setq gnus-server-method-cache nil)
@@ -1738,14 +1749,21 @@ backend check whether the group actually exists."
       (cl-destructuring-bind (method method-type infos early-data) elem
 	(when (and method infos
 		   (not (gnus-method-denied-p method)))
-	  (let ((updatep (gnus-check-backend-function
-			  'request-update-info (car method))))
-	    ;; See if any of the groups from this method require updating.
-	    (gnus-read-active-for-groups method infos early-data)
-	    (dolist (info infos)
-	      (inline (gnus-get-unread-articles-in-group
-		       info (gnus-active (gnus-info-group info))
-		       updatep)))))))
+	  (let* ((updatep (gnus-check-backend-function
+                           'request-update-info (car method)))
+                 (read-thread (gnus-maybe-thread
+                               #'gnus-read-active-for-groups method infos early-data))
+                 (process-thread (gnus-maybe-thread
+                                   (lambda (infos* updatep*)
+                                     (mapc (lambda (info)
+                                             (gnus-get-unread-articles-in-group
+                                              info
+                                              (gnus-active (gnus-info-group info))
+                                              updatep*))
+                                           infos*))
+                                   infos updatep)))
+
+))))
     (gnus-message 6 "Checking new news...done")))
 
 (defun gnus-method-rank (type method)
@@ -1768,6 +1786,13 @@ backend check whether the group actually exists."
    (t
     100)))
 
+(defmacro gnus-maybe-thread (fn &rest args)
+  "Depending on `gnus-threaded-read-active-for-groups', wrap FN ARGS in `make-thread'."
+  (declare (indent 0))
+  (if gnus-threaded-read-active-for-groups
+      `(make-thread (apply #'apply-partially ,fn ,args))
+    `(apply ,fn ,args)))
+
 (defun gnus-read-active-for-groups (method infos early-data)
   (with-current-buffer nntp-server-buffer
     (cond
@@ -1777,7 +1802,7 @@ backend check whether the group actually exists."
        early-data
        (gnus-check-backend-function 'finish-retrieve-group-infos (car method))
        (or (not (gnus-agent-method-p method))
-	   (gnus-online method)))
+           (gnus-online method)))
       (gnus-finish-retrieve-group-infos method infos early-data)
       ;; We may have altered the data now, so mark the dribble buffer
       ;; as dirty so that it gets saved.
@@ -1786,12 +1811,12 @@ backend check whether the group actually exists."
      ;; Most backends have -retrieve-groups.
      ((gnus-check-backend-function 'retrieve-groups (car method))
       (when (gnus-check-backend-function 'request-scan (car method))
-	(gnus-request-scan nil method))
+        (gnus-request-scan nil method))
       (let (groups)
-	(gnus-read-active-file-2
-	 (dolist (info infos (nreverse groups))
-	   (push (gnus-group-real-name (gnus-info-group info)) groups))
-	 method)))
+        (gnus-read-active-file-2
+         (dolist (info infos (nreverse groups))
+           (push (gnus-group-real-name (gnus-info-group info)) groups))
+         method)))
      ;; Virtually all backends have -request-list.
      ((gnus-check-backend-function 'request-list (car method))
       (gnus-read-active-file-1 method nil))
@@ -1799,7 +1824,7 @@ backend check whether the group actually exists."
      ;; by one.
      (t
       (dolist (info infos)
-	(gnus-activate-group (gnus-info-group info) nil nil method t))))))
+        (gnus-activate-group (gnus-info-group info) nil nil method t))))))
 
 (defun gnus-make-hashtable-from-newsrc-alist ()
   "Create a hash table from `gnus-newsrc-alist'.
