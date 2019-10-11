@@ -120,21 +120,19 @@ If CONFIRM is non-nil, the user will be asked for an NNTP server."
       (when (and gnus-nntp-server
 		 (stringp gnus-nntp-server)
 		 (not (string= gnus-nntp-server "")))
-	(custom-set-variables
-         (list
-          (list gnus-select-method
-                (cond ((or (string= gnus-nntp-server "")
-                           (string= gnus-nntp-server "::"))
-                       (list 'nnspool (system-name)))
-                      ((string-match "^:" gnus-nntp-server)
-                       (list 'nnmh gnus-nntp-server
-                             (list 'nnmh-directory
-                                   (file-name-as-directory
-                                    (expand-file-name
-                                     (substring gnus-nntp-server 1) "~/")))
-                             (list 'nnmh-get-new-mail nil)))
-                      (t
-                       (list 'nntp gnus-nntp-server)))))))
+	(setq gnus-select-method
+	      (cond ((or (string= gnus-nntp-server "")
+			 (string= gnus-nntp-server "::"))
+		     (list 'nnspool (system-name)))
+		    ((string-match "^:" gnus-nntp-server)
+		     (list 'nnmh gnus-nntp-server
+			   (list 'nnmh-directory
+				 (file-name-as-directory
+				  (expand-file-name
+				   (substring gnus-nntp-server 1) "~/")))
+			   (list 'nnmh-get-new-mail nil)))
+		    (t
+		     (list 'nntp gnus-nntp-server)))))
 
       (setq how (car gnus-select-method))
       (cond
