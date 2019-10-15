@@ -377,8 +377,8 @@ does not affect old (already subscribed) newsgroups."
   :type '(choice regexp
 		 (const :tag "none" nil)))
 
-(defcustom gnus-threaded-read-active-for-groups nil
-  "Instantiate a parallel thread for `gnus-read-active-for-groups' which encapsulates
+(defcustom gnus-threaded-get-unread-articles nil
+  "Instantiate parallel threads for `gnus-get-unread-articles' which encapsulates
 most of the network retrieval when `gnus-group-get-new-news' is run."
   :group 'gnus-start
   :type 'boolean
@@ -1591,17 +1591,40 @@ backend check whether the group actually exists."
 	(setcar (gnus-group-entry (gnus-info-group info)) num))
       num)))
 
-(defmacro gnus-maybe-thread (mtx fn &rest args)
-  "Depending on `gnus-threaded-read-active-for-groups', make a thread.
+(defun gnus-instantiate-server-buffer (name)
+  (let ((buffer (generate-new-buffer (format " *gnus-thread %s*" name))))
+    (nnheader-prep-server-buffer buffer)
+    buffer))
 
-MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'."
-  (declare (indent 0))
-  (if gnus-threaded-read-active-for-groups
-      `(make-thread
-        (lambda ()
-          ,(append (if (eval mtx) (list 'with-mutex mtx) (list 'prog1))
-                   (list (list 'apply fn (list 'quote args))))))
-    `(apply ,fn (quote ,args))))
+(defsubst gnus-with-mutex (mtx body)
+  "Dynamic scope disallows referencing mtx in `gnus-maybe-thread' in the natural way.
+
+Also, `lexical-let' appears to be obsolesced in `cl-lib'."
+  (with-mutex mtx
+    (funcall body)))
+
+(defsubst gnus-with-server-buffer (working-buffer body)
+  (let ((nntp-server-buffer working-buffer))
+    (funcall body)))
+
+(defun gnus-maybe-thread (mtx working &rest fns)
+  "Depending on `gnus-threaded-get-unread-articles', make a thread.
+
+MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thread'."
+  (when fns
+    (when (stringp working)
+      (setq working (gnus-instantiate-server-buffer working)))
+    (if gnus-threaded-get-unread-articles
+        (let* ((continuation (if (cdr fns)
+                                 (apply #'apply-partially
+                                        #'gnus-maybe-thread mtx working
+                                        (cdr fns))
+                               (apply-partially #'kill-buffer working)))
+               (body0 (apply-partially #'gnus-with-server-buffer working (car fns)))
+               (body1 (if mtx (apply-partially #'gnus-with-mutex mtx body0) body0))
+               (body2 (apply-partially #'mapc #'funcall `(,body1 ,continuation))))
+          (make-thread body2))
+      (mapc #'funcall fns))))
 
 (defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
   "Updating or displaying state of unread articles are critical sections.")
@@ -1764,7 +1787,7 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'
     ;; If we have primary/secondary select methods, but no groups from
     ;; them, we still want to issue a retrieval request from them.
     (unless dont-connect
-      (dolist (method gnus-select-methods)
+      (dolist (method (cons gnus-select-method gnus-secondary-select-methods))
 	(when (and (not (assoc method type-cache))
 		   (gnus-check-backend-function 'request-list (car method)))
 	  (with-current-buffer nntp-server-buffer
@@ -1775,20 +1798,20 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap FN ARGS in `make-thread'
       (cl-destructuring-bind (method method-type infos early-data) elem
 	(when (and method infos
 		   (not (gnus-method-denied-p method)))
-	  (let* ((updatep (gnus-check-backend-function
-                           'request-update-info (car method)))
-                 (read-thread (gnus-maybe-thread gnus-mutex-get-unread-articles
-                               #'gnus-read-active-for-groups method infos early-data))
-                 (process-thread (gnus-maybe-thread gnus-mutex-get-unread-articles
-                                   (lambda (infos* updatep*)
-                                     (mapc (lambda (info)
-                                             (gnus-get-unread-articles-in-group
-                                              info
-                                              (gnus-active (gnus-info-group info))
-                                              updatep*))
-                                           infos*)
-                                     (gnus-message 6 "Checking new news...done"))
-                                   infos updatep)))))))))
+	  (let ((updatep (gnus-check-backend-function
+                          'request-update-info (car method))))
+            (gnus-maybe-thread
+              gnus-mutex-get-unread-articles "get-unread-articles"
+              (apply-partially #'gnus-read-active-for-groups method infos early-data)
+              (apply-partially (lambda (infos* updatep*)
+                                 (mapc (lambda (info)
+                                         (gnus-get-unread-articles-in-group
+                                          info
+                                          (gnus-active (gnus-info-group info))
+                                          updatep*))
+                                       infos*)
+                                 (gnus-message 6 "Checking new news...done"))
+                               infos updatep))))))))
 
 (defun gnus-method-rank (type method)
   (cond
