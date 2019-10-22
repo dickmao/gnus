@@ -1596,7 +1596,7 @@ backend check whether the group actually exists."
     (nnheader-prep-server-buffer buffer)
     buffer))
 
-(defsubst gnus-with-mutex (mtx body)
+(defun gnus-with-mutex (mtx body)
   "Dynamic scope disallows referencing mtx in `gnus-maybe-thread' in the natural way.
 
 Also, `lexical-let' appears to be obsolesced in `cl-lib'."
@@ -1606,6 +1606,11 @@ Also, `lexical-let' appears to be obsolesced in `cl-lib'."
 (defsubst gnus-with-server-buffer (working-buffer body)
   (let ((nntp-server-buffer working-buffer))
     (funcall body)))
+
+(defmacro gnus-maybe-thread-pass-preceding (f args)
+  "Tack preceding return value to ARGS before applying F."
+  `(apply ,f (nconc ,args (list (and (boundp 'gnus-maybe-thread--result)
+                                     gnus-maybe-thread--result)))))
 
 (defun gnus-maybe-thread (mtx working &rest fns)
   "Depending on `gnus-threaded-get-unread-articles', make a thread.
@@ -1620,11 +1625,25 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thr
                                         #'gnus-maybe-thread mtx working
                                         (cdr fns))
                                (apply-partially #'kill-buffer working)))
+               (thread-name (format "%s" (car fns)))
+               (thread-start (apply-partially #'message "Start! %s" thread-name))
+               (thread-done (apply-partially #'message "Done! %s" thread-name))
+               (catch-error (apply-partially
+                             (lambda (name f)
+                               (condition-case err
+                                   (funcall f)
+                                 (error (gnus-message 5 "gnus-maybe-thread: '%s' at %s"
+                                                      (error-message-string err)
+                                                      name))))
+                             thread-name))
                (body0 (apply-partially #'gnus-with-server-buffer working (car fns)))
                (body1 (if mtx (apply-partially #'gnus-with-mutex mtx body0) body0))
-               (body2 (apply-partially #'mapc #'funcall `(,body1 ,continuation))))
-          (make-thread body2))
-      (mapc #'funcall fns))))
+               (body2 (apply-partially catch-error body1))
+               (body3 (apply-partially #'mapc #'funcall
+                                       `(,thread-start ,body2 ,continuation ,thread-done))))
+          (make-thread body3 thread-name))
+      (let (gnus-maybe-thread--result)
+        (mapc (lambda (fn) (setq gnus-maybe-thread--result (funcall fn))) fns)))))
 
 (defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
   "Updating or displaying state of unread articles are critical sections.")
@@ -1685,7 +1704,7 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thr
 		'primary)
 	       (t
 		'foreign)))
-	(push (setq method-group-list (list method method-type nil nil))
+	(push (setq method-group-list (list method method-type nil))
 	      type-cache))
       ;; Only add groups that need updating.
       (if (or (and foreign-level (null (numberp foreign-level)))
@@ -1715,7 +1734,7 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thr
     ;; aren't equal (and that need extension; i.e., they are async).
     (let ((methods nil))
       (dolist (elem type-cache)
-	(cl-destructuring-bind (method method-type infos dummy) elem
+	(cl-destructuring-bind (method method-type infos) elem
 	  (let ((gnus-opened-servers methods))
 	    (when (and (gnus-similar-server-opened method)
 		       (gnus-check-backend-function
@@ -1736,82 +1755,78 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thr
 	  (with-current-buffer nntp-server-buffer
 	    (gnus-read-active-file-1 method nil)))))
 
-    ;; Clear out all the early methods.
-    (dolist (elem type-cache)
-      (cl-destructuring-bind (method method-type infos dummy) elem
-	(when (and method
-		   infos
-		   (gnus-check-backend-function
-		    'retrieve-group-data-early (car method))
-		   (not (gnus-method-denied-p method)))
-	  (when (ignore-errors (gnus-get-function method 'open-server))
-	    (unless (gnus-server-opened method)
-	      (gnus-open-server method))
-	    (when (gnus-server-opened method)
-	      ;; Just mark this server as "cleared".
-	      (gnus-retrieve-group-data-early method nil))))))
+    ;; Must be able to `gnus-open-server'
+    (setq type-cache (seq-filter
+                      (lambda (elem)
+                        (cl-destructuring-bind (method _type _infos) elem
+                          (ignore-errors (gnus-get-function method 'open-server))))
+                      type-cache))
 
-    ;; Start early synchronous retrieval of data.
-    (let ((done-methods nil)
-	  sanity-spec)
-      (dolist (elem type-cache)
-	(cl-destructuring-bind (method method-type infos dummy) elem
-	  (setq sanity-spec (list (car method) (cadr method)))
-	  (when (and method infos
-		     (not (gnus-method-denied-p method)))
-	    ;; If the open-server method doesn't exist, then the method
-	    ;; itself doesn't exist, so we ignore it.
-	    (if (not (ignore-errors (gnus-get-function method 'open-server)))
-		(setq type-cache (delq elem type-cache))
-	      (unless (gnus-server-opened method)
-		(gnus-open-server method))
-	      (when (and
-		     ;; This is a sanity check, so that we never
-		     ;; attempt to start two async requests to the
-		     ;; same server, because that will fail.  This
-		     ;; should never happen, since the methods should
-		     ;; be unique at this point, but apparently it
-		     ;; does happen in the wild with some setups.
-		     (not (member sanity-spec done-methods))
-		     (gnus-server-opened method)
-		     (gnus-check-backend-function
-		      'retrieve-group-data-early (car method)))
-		(push sanity-spec done-methods)
-		(when (gnus-check-backend-function 'request-scan (car method))
-		  (gnus-request-scan nil method))
-		;; Store the token we get back from -early so that we
-		;; can pass it to -finish later.
-		(setcar (nthcdr 3 elem)
-			(gnus-retrieve-group-data-early method infos))))))))
+    (let (methods)
+      (mapc (lambda (elem)
+              (cl-destructuring-bind
+                (method _type infos
+                 &aux
+                 (backend (car method))
+                 (already-p
+                  (cl-some (apply-partially
+                            #'gnus-methods-equal-p method)
+                           methods))
+                 (denied-p (gnus-method-denied-p method))
+                 (scan-p (gnus-check-backend-function 'request-scan backend))
+                 (early-p (gnus-check-backend-function
+                           'retrieve-group-data-early backend))
+                 (update-p (gnus-check-backend-function
+                            'request-update-info backend))
+                 commands early-data)
+                  elem
+                (when (and method infos (not denied-p) (not already-p))
+                  (push method methods)
+                  (unless (gnus-server-opened method)
+                    (gnus-open-server method))
+                  (when (gnus-server-opened method)
+                    (when early-p
+                      ;; Just mark this server as "cleared".
+                      (gnus-push-end (apply-partially
+                                      #'gnus-retrieve-group-data-early method nil)
+                                     commands)
 
-    ;; If we have primary/secondary select methods, but no groups from
-    ;; them, we still want to issue a retrieval request from them.
-    (unless dont-connect
-      (dolist (method (cons gnus-select-method gnus-secondary-select-methods))
-	(when (and (not (assoc method type-cache))
-		   (gnus-check-backend-function 'request-list (car method)))
-	  (with-current-buffer nntp-server-buffer
-	    (gnus-read-active-file-1 method nil)))))
+                      ;; This is a sanity check, so that we never
+                      ;; attempt to start two async requests to the
+                      ;; same server, because that will fail.  This
+                      ;; should never happen, since the methods should
+                      ;; be unique at this point, but apparently it
+                      ;; does happen in the wild with some setups.
+                      (when scan-p
+                        (gnus-push-end (apply-partially #'gnus-request-scan nil method)
+                                       commands))
 
-    ;; Do the rest of the retrieval.
-    (dolist (elem type-cache)
-      (cl-destructuring-bind (method method-type infos early-data) elem
-	(when (and method infos
-		   (not (gnus-method-denied-p method)))
-	  (let ((updatep (gnus-check-backend-function
-                          'request-update-info (car method))))
-            (gnus-maybe-thread
-              gnus-mutex-get-unread-articles "get-unread-articles"
-              (apply-partially #'gnus-read-active-for-groups method infos early-data)
-              (apply-partially (lambda (infos* updatep*)
-                                 (mapc (lambda (info)
-                                         (gnus-get-unread-articles-in-group
-                                          info
-                                          (gnus-active (gnus-info-group info))
-                                          updatep*))
-                                       infos*)
-                                 (gnus-message 6 "Checking new news...done"))
-                               infos updatep))))))))
+                      ;; Store the token we get back from -early so that we
+                      ;; can pass it to -finish later.
+                      (gnus-push-end (apply-partially
+                                      #'gnus-retrieve-group-data-early
+                                      method infos)
+                                     commands))
+                    (gnus-push-end (apply-partially
+                                    (lambda (f &rest args)
+                                      (gnus-maybe-thread-pass-preceding f args))
+                                    #'gnus-read-active-for-groups method infos)
+                                   commands)
+                    (gnus-push-end (apply-partially
+                                    (lambda (infos* update-p*)
+                                      (mapc (lambda (info)
+                                              (gnus-get-unread-articles-in-group
+                                               info
+                                               (gnus-active (gnus-info-group info))
+                                               update-p*))
+                                            infos*)
+                                      (gnus-message 6 "Checking new news...done"))
+                                    infos update-p)
+                                   commands)
+                    (apply #'gnus-maybe-thread
+                           gnus-mutex-get-unread-articles "get-unread-articles"
+                           commands)))))
+            type-cache))))
 
 (defun gnus-method-rank (type method)
   (cond
