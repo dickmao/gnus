@@ -106,6 +106,9 @@ This is a compatibility function for different Emacsen."
 (put 'gnus-eval-in-buffer-window 'lisp-indent-function 1)
 (put 'gnus-eval-in-buffer-window 'edebug-form-spec '(form body))
 
+(defmacro gnus-push-end (elt place)
+  `(push ,elt (if (consp ,place) (cdr (last ,place)) ,place)))
+
 (defsubst gnus-goto-char (point)
   (and point (goto-char point)))
 
