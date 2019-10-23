@@ -1612,38 +1612,63 @@ Also, `lexical-let' appears to be obsolesced in `cl-lib'."
   `(apply ,f (nconc ,args (list (and (boundp 'gnus-maybe-thread--result)
                                      gnus-maybe-thread--result)))))
 
-(defun gnus-maybe-thread (mtx working &rest fns)
+(defun gnus-maybe-thread (mtx working gnus-maybe-thread--result &rest fns)
   "Depending on `gnus-threaded-get-unread-articles', make a thread.
 
-MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thread'."
+MTX, if non-nil, is the mutex for the new thread.
+WORKING is the working buffer.
+GNUS-MAYBE-THREAD--RESULT is the return value of the previous thread.
+Wrap each of FNS in `make-thread'."
   (when fns
     (when (stringp working)
       (setq working (gnus-instantiate-server-buffer working)))
     (if gnus-threaded-get-unread-articles
-        (let* ((continuation (if (cdr fns)
-                                 (apply #'apply-partially
-                                        #'gnus-maybe-thread mtx working
-                                        (cdr fns))
-                               (apply-partially #'kill-buffer working)))
-               (thread-name (format "%s" (car fns)))
-               (thread-start (apply-partially #'message "Start! %s" thread-name))
-               (thread-done (apply-partially #'message "Done! %s" thread-name))
+        (let* ((thread-name (let* ((max-len 160)
+                                   (full-name (pp-to-string (car fns)))
+                                   (short-name (cl-subseq
+                                                full-name 0
+                                                (min max-len
+                                                     (length full-name)))))
+                              (if (> (length full-name) (length short-name))
+                                  (concat short-name "...")
+                                short-name)))
+               (thread-start (apply-partially #'nnheader-message 9
+                                              "gnus-maybe-thread: start %s"
+                                              thread-name))
+               (thread-done (apply-partially #'nnheader-message 9
+                                              "gnus-maybe-thread: finish %s"
+                                              thread-name))
                (catch-error (apply-partially
                              (lambda (name f)
                                (condition-case err
                                    (funcall f)
-                                 (error (gnus-message 5 "gnus-maybe-thread: '%s' at %s"
-                                                      (error-message-string err)
-                                                      name))))
+                                 (error (nnheader-message
+                                         4 "gnus-maybe-thread: '%s' at %s"
+                                         (error-message-string err)
+                                         name))))
                              thread-name))
                (body0 (apply-partially #'gnus-with-server-buffer working (car fns)))
-               (body1 (if mtx (apply-partially #'gnus-with-mutex mtx body0) body0))
-               (body2 (apply-partially catch-error body1))
-               (body3 (apply-partially #'mapc #'funcall
-                                       `(,thread-start ,body2 ,continuation ,thread-done))))
-          (make-thread body3 thread-name))
-      (let (gnus-maybe-thread--result)
-        (mapc (lambda (fn) (setq gnus-maybe-thread--result (funcall fn))) fns)))))
+               (body1 (apply-partially catch-error body0))
+               (body2 (apply-partially
+                       (lambda (mtx*
+                                working*
+                                gnus-maybe-thread--result
+                                thread-start*
+                                body*
+                                thread-done*
+                                cdr-fns)
+                         (let (result)
+                           (funcall thread-start*)
+                           (setq result (funcall body*))
+                           (if cdr-fns
+                               (apply #'gnus-maybe-thread mtx* working*
+                                      result cdr-fns)
+                             (kill-buffer working*))
+                           (funcall thread-done*)))
+                       mtx working gnus-maybe-thread--result
+                       thread-start body1 thread-done (cdr fns))))
+          (make-thread body2 thread-name))
+      (mapc (lambda (fn) (setq gnus-maybe-thread--result (funcall fn))) fns))))
 
 (defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
   "Updating or displaying state of unread articles are critical sections.")
@@ -1782,50 +1807,50 @@ MTX, if non-nil, is the mutex for the new thread.  Wrap each of FNS in `make-thr
                   elem
                 (when (and method infos (not denied-p) (not already-p))
                   (push method methods)
-                  (unless (gnus-server-opened method)
-                    (gnus-open-server method))
-                  (when (gnus-server-opened method)
-                    (when early-p
-                      ;; Just mark this server as "cleared".
-                      (gnus-push-end (apply-partially
-                                      #'gnus-retrieve-group-data-early method nil)
-                                     commands)
+                  (gnus-push-end (apply-partially
+                                  #'gnus-open-server method)
+                                 commands)
+                  (when early-p
+                    ;; Just mark this server as "cleared".
+                    (gnus-push-end (apply-partially
+                                    #'gnus-retrieve-group-data-early method nil)
+                                   commands)
 
-                      ;; This is a sanity check, so that we never
-                      ;; attempt to start two async requests to the
-                      ;; same server, because that will fail.  This
-                      ;; should never happen, since the methods should
-                      ;; be unique at this point, but apparently it
-                      ;; does happen in the wild with some setups.
-                      (when scan-p
-                        (gnus-push-end (apply-partially #'gnus-request-scan nil method)
-                                       commands))
-
-                      ;; Store the token we get back from -early so that we
-                      ;; can pass it to -finish later.
-                      (gnus-push-end (apply-partially
-                                      #'gnus-retrieve-group-data-early
-                                      method infos)
+                    ;; This is a sanity check, so that we never
+                    ;; attempt to start two async requests to the
+                    ;; same server, because that will fail.  This
+                    ;; should never happen, since the methods should
+                    ;; be unique at this point, but apparently it
+                    ;; does happen in the wild with some setups.
+                    (when scan-p
+                      (gnus-push-end (apply-partially #'gnus-request-scan nil method)
                                      commands))
+
+                    ;; Store the token we get back from -early so that we
+                    ;; can pass it to -finish later.
                     (gnus-push-end (apply-partially
-                                    (lambda (f &rest args)
-                                      (gnus-maybe-thread-pass-preceding f args))
-                                    #'gnus-read-active-for-groups method infos)
-                                   commands)
-                    (gnus-push-end (apply-partially
-                                    (lambda (infos* update-p*)
-                                      (mapc (lambda (info)
-                                              (gnus-get-unread-articles-in-group
-                                               info
-                                               (gnus-active (gnus-info-group info))
-                                               update-p*))
-                                            infos*)
-                                      (gnus-message 6 "Checking new news...done"))
-                                    infos update-p)
-                                   commands)
-                    (apply #'gnus-maybe-thread
-                           gnus-mutex-get-unread-articles "get-unread-articles"
-                           commands)))))
+                                    #'gnus-retrieve-group-data-early
+                                    method infos)
+                                   commands))
+                  (gnus-push-end (apply-partially
+                                  (lambda (f &rest args)
+                                    (gnus-maybe-thread-pass-preceding f args))
+                                  #'gnus-read-active-for-groups method infos)
+                                 commands)
+                  (gnus-push-end (apply-partially
+                                  (lambda (infos* update-p*)
+                                    (mapc (lambda (info)
+                                            (gnus-get-unread-articles-in-group
+                                             info
+                                             (gnus-active (gnus-info-group info))
+                                             update-p*))
+                                          infos*)
+                                    (gnus-message 6 "Checking new news...done"))
+                                  infos update-p)
+                                 commands)
+                  (apply #'gnus-maybe-thread
+                         gnus-mutex-get-unread-articles "get-unread-articles" nil
+                         commands))))
             type-cache))))
 
 (defun gnus-method-rank (type method)
