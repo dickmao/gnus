@@ -1596,79 +1596,51 @@ backend check whether the group actually exists."
     (nnheader-prep-server-buffer buffer)
     buffer))
 
-(defun gnus-with-mutex (mtx body)
-  "Dynamic scope disallows referencing mtx in `gnus-maybe-thread' in the natural way.
-
-Also, `lexical-let' appears to be obsolesced in `cl-lib'."
-  (with-mutex mtx
-    (funcall body)))
-
-(defsubst gnus-with-server-buffer (working-buffer body)
-  (let ((nntp-server-buffer working-buffer))
-    (funcall body)))
-
 (defmacro gnus-maybe-thread-pass-preceding (f args)
   "Tack preceding return value to ARGS before applying F."
   `(apply ,f (nconc ,args (list (and (boundp 'gnus-maybe-thread--result)
                                      gnus-maybe-thread--result)))))
 
-(defun gnus-maybe-thread (mtx working gnus-maybe-thread--result &rest fns)
+(defun gnus-thread-body (thread-name mtx working fns)
+  (with-mutex mtx
+    (nnheader-message 9 "gnus-thread-body: start %s" thread-name)
+    (let (gnus-maybe-thread--result
+          current-fn
+          (nntp-server-buffer working))
+      (condition-case err
+          (dolist (fn fns)
+            (setq current-fn fn)
+            (setq gnus-maybe-thread--result (funcall fn)))
+        (error (nnheader-message
+                4 "gnus-thread-body: '%s' in %S"
+                (error-message-string err) current-fn))))
+    (kill-buffer working)
+    (nnheader-message 9 "gnus-thread-body: finish %s" thread-name)))
+
+(defun gnus-maybe-thread (mtx working &rest fns)
   "Depending on `gnus-threaded-get-unread-articles', make a thread.
 
 MTX, if non-nil, is the mutex for the new thread.
 WORKING is the working buffer.
-GNUS-MAYBE-THREAD--RESULT is the return value of the previous thread.
 Wrap each of FNS in `make-thread'."
   (when fns
-    (when (stringp working)
-      (setq working (gnus-instantiate-server-buffer working)))
     (if gnus-threaded-get-unread-articles
-        (let* ((thread-name (let* ((max-len 160)
-                                   (full-name (pp-to-string (car fns)))
-                                   (short-name (cl-subseq
-                                                full-name 0
-                                                (min max-len
-                                                     (length full-name)))))
-                              (if (> (length full-name) (length short-name))
-                                  (concat short-name "...")
-                                short-name)))
-               (thread-start (apply-partially #'nnheader-message 9
-                                              "gnus-maybe-thread: start %s"
-                                              thread-name))
-               (thread-done (apply-partially #'nnheader-message 9
-                                              "gnus-maybe-thread: finish %s"
-                                              thread-name))
-               (catch-error (apply-partially
-                             (lambda (name f)
-                               (condition-case err
-                                   (funcall f)
-                                 (error (nnheader-message
-                                         4 "gnus-maybe-thread: '%s' at %s"
-                                         (error-message-string err)
-                                         name))))
-                             thread-name))
-               (body0 (apply-partially #'gnus-with-server-buffer working (car fns)))
-               (body1 (apply-partially catch-error body0))
-               (body2 (apply-partially
-                       (lambda (mtx*
-                                working*
-                                gnus-maybe-thread--result
-                                thread-start*
-                                body*
-                                thread-done*
-                                cdr-fns)
-                         (let (result)
-                           (funcall thread-start*)
-                           (setq result (funcall body*))
-                           (if cdr-fns
-                               (apply #'gnus-maybe-thread mtx* working*
-                                      result cdr-fns)
-                             (kill-buffer working*))
-                           (funcall thread-done*)))
-                       mtx working gnus-maybe-thread--result
-                       thread-start body1 thread-done (cdr fns))))
-          (make-thread body2 thread-name))
-      (mapc (lambda (fn) (setq gnus-maybe-thread--result (funcall fn))) fns))))
+        (let ((thread-name (let* ((max-len 160)
+                                  (full-name (pp-to-string (car fns)))
+                                  (short-name (cl-subseq
+                                               full-name 0
+                                               (min max-len
+                                                    (length full-name)))))
+                             (if (> (length full-name) (length short-name))
+                                 (concat short-name "...")
+                               short-name))))
+          (make-thread (apply-partially
+                        #'gnus-thread-body
+                        thread-name mtx
+                        (gnus-instantiate-server-buffer working) fns)
+                       thread-name))
+      (let (gnus-maybe-thread--result)
+        (mapc (lambda (fn) (setq gnus-maybe-thread--result (funcall fn))) fns)))))
 
 (defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
   "Updating or displaying state of unread articles are critical sections.")
@@ -1849,7 +1821,7 @@ Wrap each of FNS in `make-thread'."
                                   infos update-p)
                                  commands)
                   (apply #'gnus-maybe-thread
-                         gnus-mutex-get-unread-articles "get-unread-articles" nil
+                         gnus-mutex-get-unread-articles "get-unread-articles"
                          commands))))
             type-cache))))
 
