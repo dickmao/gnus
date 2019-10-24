@@ -36,6 +36,7 @@
 (autoload 'gnus-agent-save-local "gnus-agent")
 (autoload 'gnus-agent-possibly-alter-active "gnus-agent")
 (declare-function gnus-group-decoded-name "gnus-group" (string))
+(declare-function gnus-group-default-level "gnus-group")
 
 (eval-when-compile (require 'cl-lib))
 
@@ -766,7 +767,8 @@ prompt the user for the name of an NNTP server to use."
 	(gnus-group-get-new-news
 	 (and (numberp arg)
 	      (> arg 0)
-	      (max (car gnus-group-list-mode) arg))))
+	      (max (car gnus-group-list-mode) arg))
+         nil gnus-threaded-get-unread-articles))
 
     (gnus-clear-system)
     (gnus-splash)
@@ -1596,56 +1598,57 @@ backend check whether the group actually exists."
     (nnheader-prep-server-buffer buffer)
     buffer))
 
-(defmacro gnus-maybe-thread-pass-preceding (f args)
+(defmacro gnus-get-unread-articles-pass-preceding (f args)
   "Tack preceding return value to ARGS before applying F."
-  `(apply ,f (nconc ,args (list (and (boundp 'gnus-maybe-thread--result)
-                                     gnus-maybe-thread--result)))))
+  `(apply ,f (nconc ,args (list (and (boundp 'gnus-run-thread--subresult)
+                                     gnus-run-thread--subresult)))))
 
 (defun gnus-thread-body (thread-name mtx working fns)
   (with-mutex mtx
     (nnheader-message 9 "gnus-thread-body: start %s" thread-name)
-    (let (gnus-maybe-thread--result
+    (let (gnus-run-thread--subresult
           current-fn
           (nntp-server-buffer working))
       (condition-case err
           (dolist (fn fns)
             (setq current-fn fn)
-            (setq gnus-maybe-thread--result (funcall fn)))
+            (setq gnus-run-thread--subresult (funcall fn)))
         (error (nnheader-message
                 4 "gnus-thread-body: '%s' in %S"
                 (error-message-string err) current-fn))))
     (kill-buffer working)
     (nnheader-message 9 "gnus-thread-body: finish %s" thread-name)))
 
-(defun gnus-maybe-thread (mtx working &rest fns)
-  "Depending on `gnus-threaded-get-unread-articles', make a thread.
-
-MTX, if non-nil, is the mutex for the new thread.
-WORKING is the working buffer.
-Wrap each of FNS in `make-thread'."
+(defun gnus-run-thread (mtx thread-group &rest fns)
+  "MTX, if non-nil, is the mutex for the new thread.
+THREAD-GROUP is string useful for naming working buffer and threads.
+All FNS must finish before MTX is released."
   (when fns
-    (if gnus-threaded-get-unread-articles
-        (let ((thread-name (let* ((max-len 160)
-                                  (full-name (pp-to-string (car fns)))
-                                  (short-name (cl-subseq
-                                               full-name 0
-                                               (min max-len
-                                                    (length full-name)))))
-                             (if (> (length full-name) (length short-name))
-                                 (concat short-name "...")
-                               short-name))))
-          (make-thread (apply-partially
-                        #'gnus-thread-body
-                        thread-name mtx
-                        (gnus-instantiate-server-buffer working) fns)
-                       thread-name))
-      (let (gnus-maybe-thread--result)
-        (mapc (lambda (fn) (setq gnus-maybe-thread--result (funcall fn))) fns)))))
+    (let ((thread-name
+           (concat thread-group "-"
+                   (let* ((max-len 160)
+                          (full-name (pp-to-string (car fns)))
+                          (short-name (cl-subseq
+                                       full-name 0
+                                       (min max-len
+                                            (length full-name)))))
+                     (if (> (length full-name) (length short-name))
+                         (concat short-name "...")
+                       short-name)))))
+      (make-thread (apply-partially
+                    #'gnus-thread-body
+                    thread-name mtx
+                    (gnus-instantiate-server-buffer thread-group)
+                    fns)
+                   thread-name))))
 
 (defvar gnus-mutex-get-unread-articles (make-mutex "gnus-mutex-get-unread-articles")
   "Updating or displaying state of unread articles are critical sections.")
 
-(defun gnus-get-unread-articles (&optional level dont-connect one-level)
+(cl-defun gnus-get-unread-articles (&optional requested-level dont-connect
+                                              one-level background
+                                    &aux (level (gnus-group-default-level
+                                                 requested-level t)))
   "Go through `gnus-newsrc-alist' and compare with `gnus-active-hashtb'
   and compute how many unread articles there are in each group."
   (setq gnus-server-method-cache nil)
@@ -1729,7 +1732,7 @@ Wrap each of FNS in `make-thread'."
 		     (gnus-method-rank (cadr c2) (car c2))))))
     ;; Go through the list of servers and possibly extend methods that
     ;; aren't equal (and that need extension; i.e., they are async).
-    (let ((methods nil))
+    (let (methods)
       (dolist (elem type-cache)
 	(cl-destructuring-bind (method method-type infos) elem
 	  (let ((gnus-opened-servers methods))
@@ -1759,7 +1762,15 @@ Wrap each of FNS in `make-thread'."
                           (ignore-errors (gnus-get-function method 'open-server))))
                       type-cache))
 
-    (let (methods)
+    (let (methods
+          (coda (apply-partially
+                 (lambda (level*)
+                   (nnheader-message 9 "gnus-get-unread-articles: all done")
+                   (save-excursion
+                     (gnus-group-list-groups level*)
+                     (gnus-run-hooks 'gnus-after-getting-new-news-hook)))
+                 (and (numberp level)
+                      (max (car gnus-group-list-mode) level)))))
       (mapc (lambda (elem)
               (cl-destructuring-bind
                 (method _type infos
@@ -1806,7 +1817,7 @@ Wrap each of FNS in `make-thread'."
                                    commands))
                   (gnus-push-end (apply-partially
                                   (lambda (f &rest args)
-                                    (gnus-maybe-thread-pass-preceding f args))
+                                    (gnus-get-unread-articles-pass-preceding f args))
                                   #'gnus-read-active-for-groups method infos)
                                  commands)
                   (gnus-push-end (apply-partially
@@ -1820,10 +1831,31 @@ Wrap each of FNS in `make-thread'."
                                     (gnus-message 6 "Checking new news...done"))
                                   infos update-p)
                                  commands)
-                  (apply #'gnus-maybe-thread
-                         gnus-mutex-get-unread-articles "get-unread-articles"
-                         commands))))
-            type-cache))))
+                  (if background
+                      (let ((thread-group "gnus-unread-articles"))
+                        (add-function
+                         :before-while coda
+                         (apply-partially
+                          (lambda (thread-group* &rest _args)
+                            "Proceed with before-while if I'm the last one."
+                            (<= (cl-count thread-group*
+                                          (all-threads)
+                                          :test (lambda (s thr)
+                                                  (cl-search s (thread-name thr))))
+                                1))
+                          thread-group))
+                        (gnus-push-end coda commands)
+                        (apply #'gnus-run-thread
+                               gnus-mutex-get-unread-articles
+                               thread-group
+                               commands))
+                    (let (gnus-run-thread--subresult)
+                      (mapc (lambda (fn)
+                              (setq gnus-run-thread--subresult (funcall fn)))
+                            commands))))))
+            type-cache)
+      (unless background
+        (funcall coda)))))
 
 (defun gnus-method-rank (type method)
   (cond
