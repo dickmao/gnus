@@ -1766,9 +1766,9 @@ All FNS must finish before MTX is released."
           (coda (apply-partially
                  (lambda (level*)
                    (nnheader-message 9 "gnus-get-unread-articles: all done")
-                   (save-excursion
-                     (gnus-group-list-groups level*)
-                     (gnus-run-hooks 'gnus-after-getting-new-news-hook)))
+                   (gnus-group-list-groups level*)
+                   (gnus-run-hooks 'gnus-after-getting-new-news-hook)
+                   (gnus-group-list-groups))
                  (and (numberp level)
                       (max (car gnus-group-list-mode) level)))))
       (mapc (lambda (elem)
