@@ -1306,8 +1306,7 @@ If SEND-IF-FORCE, only send authinfo to the server if the
                         (apply-partially
                          (lambda (buffer)
                            (when-let ((process
-                                       (car (rassoc (list buffer nil)
-                                                    nntp-connection-alist))))
+                                       (car (nntp-find-connection-entry buffer))))
                              (setq nntp-connection-list
                                    (delq process nntp-connection-list))
                              (setq nntp-connection-alist
