@@ -1066,7 +1066,7 @@ see the manual for details."
          (set-default symbol value)
          (setq gnus-select-methods (cons value gnus-secondary-select-methods)))
   :type 'gnus-select-method)
-(make-obsolete-variable 'gnus-select-method 'gnus-select-methods "27.1")
+(make-obsolete-variable 'gnus-select-method 'gnus-select-methods "27.1" 'set)
 
 (defcustom gnus-message-archive-method "archive"
   "Method used for archiving messages you've sent.
@@ -1146,7 +1146,7 @@ you could set this variable:
          (set-default symbol value)
          (setq gnus-select-methods (cons gnus-select-method value)))
   :type '(repeat gnus-select-method))
-(make-obsolete-variable 'gnus-secondary-select-methods 'gnus-select-methods "27.1")
+(make-obsolete-variable 'gnus-secondary-select-methods 'gnus-select-methods "27.1" 'set)
 
 (defcustom gnus-select-methods (cons gnus-select-method gnus-secondary-select-methods)
   "((BACKEND1 ADDRESS1) (BACKEND2 ADDRESS2) ... ) where BACKEND is a symbol, e.g.,

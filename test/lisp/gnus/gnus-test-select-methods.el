@@ -21,6 +21,12 @@
 
 (require 'ert)
 (require 'gnus)
+(require 'gnus-int)
+
+(eval-when-compile
+  (put 'gnus-secondary-select-methods 'byte-obsolete-variable nil)
+  (put 'gnus-select-method 'byte-obsolete-variable nil)
+  (put 'gnus-nntp-server 'byte-obsolete-variable nil))
 
 (ert-deftest gnus-test-select-methods-basic ()
   "Customizing `gnus-select-method' and `gnus-secondary-select-methods'
@@ -55,5 +61,13 @@ of `gnus-select-method' and `gnus-secondary-select-methods'."
     (should (cl-every #'identity
                       (cl-mapcar #'gnus-methods-equal-p gnus-secondary-select-methods
                                  (cdr gnus-select-methods))))))
+
+(ert-deftest gnus-test-gnus-start-news-server ()
+  "Test an archaic method of initiating gnus."
+  (let (gnus-current-select-method
+        (gnus-nntp-server "::"))
+    (cl-letf (((symbol-function 'gnus-y-or-n-p) #'ignore))
+      (gnus-start-news-server)
+      (should (gnus-method-equal gnus-select-method `(nnspool ,(system-name)))))))
 
 ;;; gnus-test-select-methods.el ends here
