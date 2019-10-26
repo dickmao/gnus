@@ -7764,8 +7764,7 @@ Given a prefix, will force an `article' buffer configuration."
     (setq gnus-article-charset gnus-newsgroup-charset)
     (setq gnus-article-ignored-charsets gnus-newsgroup-ignored-charsets)
     (mm-enable-multibyte))
-  (if (null article)
-      nil
+  (when article
     (prog1
 	(funcall (or gnus-summary-display-article-function
                      #'gnus-article-prepare)
