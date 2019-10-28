@@ -525,15 +525,18 @@ to the numeric argument.  ARG counts from 1."
 (defalias 'tab-bar-select-tab-by-name 'tab-bar-switch-to-tab)
 
 
-(defun tab-bar-swap-tabs (to-index &optional from-index)
-  "Exchange positions of two tabs referred by FROM-INDEX and TO-INDEX.
+(defun tab-bar-move-tab-to (to-index &optional from-index)
+  "Move tab from FROM-INDEX position to new position at TO-INDEX.
 FROM-INDEX defaults to the current tab index.
 FROM-INDEX and TO-INDEX count from 1."
   (interactive "P")
   (let* ((tabs (funcall tab-bar-tabs-function))
-         (from-index (or from-index (1+ (tab-bar--current-tab-index tabs)))))
-    (cl-rotatef (nth (1- from-index) tabs)
-                (nth (1- to-index) tabs))))
+         (from-index (or from-index (1+ (tab-bar--current-tab-index tabs))))
+         (from-tab (nth (1- from-index) tabs))
+         (to-index (max 0 (min (1- to-index) (1- (length tabs))))))
+    (setq tabs (delq from-tab tabs))
+    (cl-pushnew from-tab (nthcdr to-index tabs))
+    (set-frame-parameter nil 'tabs tabs)))
 
 (defun tab-bar-move-tab (&optional arg)
   "Move the current tab ARG positions to the right.
@@ -542,7 +545,7 @@ If a negative ARG, move the current tab ARG positions to the left."
   (let* ((tabs (funcall tab-bar-tabs-function))
          (from-index (or (tab-bar--current-tab-index tabs) 0))
          (to-index (mod (+ from-index arg) (length tabs))))
-    (tab-bar-swap-tabs (1+ to-index) (1+ from-index))))
+    (tab-bar-move-tab-to (1+ to-index) (1+ from-index))))
 
 
 (defcustom tab-bar-new-tab-to 'right
@@ -558,9 +561,11 @@ If `rightmost', create as the last tab."
   :group 'tab-bar
   :version "27.1")
 
-(defun tab-bar-new-tab ()
-  "Add a new tab at the position specified by `tab-bar-new-tab-to'."
-  (interactive)
+(defun tab-bar-new-tab-to (&optional to-index)
+  "Add a new tab at the absolute position TO-INDEX.
+TO-INDEX counts from 1.  If no TO-INDEX is specified, then add
+a new tab at the position specified by `tab-bar-new-tab-to'."
+  (interactive "P")
   (let* ((tabs (funcall tab-bar-tabs-function))
          (from-index (tab-bar--current-tab-index tabs))
          (from-tab (tab-bar--tab)))
@@ -582,11 +587,12 @@ If `rightmost', create as the last tab."
     (when from-index
       (setf (nth from-index tabs) from-tab))
     (let ((to-tab (tab-bar--current-tab))
-          (to-index (pcase tab-bar-new-tab-to
-                      ('leftmost 0)
-                      ('rightmost (length tabs))
-                      ('left (1- (or from-index 1)))
-                      ('right (1+ (or from-index 0))))))
+          (to-index (or (if to-index (1- to-index))
+                        (pcase tab-bar-new-tab-to
+                          ('leftmost 0)
+                          ('rightmost (length tabs))
+                          ('left (1- (or from-index 1)))
+                          ('right (1+ (or from-index 0)))))))
       (setq to-index (max 0 (min (or to-index 0) (length tabs))))
       (cl-pushnew to-tab (nthcdr to-index tabs))
       (when (eq to-index 0)
@@ -603,7 +609,22 @@ If `rightmost', create as the last tab."
     (unless tab-bar-mode
       (message "Added new tab at %s" tab-bar-new-tab-to))))
 
+(defun tab-bar-new-tab (&optional arg)
+  "Create a new tab ARG positions to the right.
+If a negative ARG, create a new tab ARG positions to the left.
+If ARG is zero, create a new tab in place of the current tab."
+  (interactive "P")
+  (if arg
+      (let* ((tabs (funcall tab-bar-tabs-function))
+             (from-index (or (tab-bar--current-tab-index tabs) 0))
+             (to-index (+ from-index (prefix-numeric-value arg))))
+        (tab-bar-new-tab-to (1+ to-index)))
+    (tab-bar-new-tab-to)))
+
 
+(defvar tab-bar-closed-tabs nil
+  "A list of closed tabs to be able to undo their closing.")
+
 (defcustom tab-bar-close-tab-select 'right
   "Defines what tab to select after closing the specified tab.
 If `left', select the adjacent left tab.
@@ -640,11 +661,19 @@ TO-INDEX counts from 1."
         ;; Re-read tabs after selecting another tab
         (setq tabs (funcall tab-bar-tabs-function))))
 
-    (set-frame-parameter nil 'tabs (delq (nth close-index tabs) tabs))
+    (let ((close-tab (nth close-index tabs)))
+      (push `((frame . ,(selected-frame))
+              (index . ,close-index)
+              (tab . ,(if (eq (car close-tab) 'current-tab)
+                          (tab-bar--tab)
+                        close-tab)))
+            tab-bar-closed-tabs)
+      (set-frame-parameter nil 'tabs (delq close-tab tabs)))
 
     (when (and tab-bar-mode
-               (and (natnump tab-bar-show)
-                    (<= (length tabs) tab-bar-show)))
+               (or (<= (length tabs) 1) ; closed the last tab
+                   (and (natnump tab-bar-show)
+                        (<= (length tabs) tab-bar-show))))
       (tab-bar-mode -1))
 
     (force-mode-line-update)
@@ -665,7 +694,14 @@ TO-INDEX counts from 1."
   (let* ((tabs (funcall tab-bar-tabs-function))
          (current-index (tab-bar--current-tab-index tabs)))
     (when current-index
+      (dotimes (index (length tabs))
+        (unless (eq index current-index)
+          (push `((frame . ,(selected-frame))
+                  (index . ,index)
+                  (tab . ,(nth index tabs)))
+                tab-bar-closed-tabs)))
       (set-frame-parameter nil 'tabs (list (nth current-index tabs)))
+
       (when (and tab-bar-mode
                  (and (natnump tab-bar-show)
                       (<= 1 tab-bar-show)))
@@ -674,6 +710,32 @@ TO-INDEX counts from 1."
       (force-mode-line-update)
       (unless tab-bar-mode
         (message "Deleted all other tabs")))))
+
+(defun tab-bar-undo-close-tab ()
+  "Restore the last closed tab."
+  (interactive)
+  ;; Pop out closed tabs that were on already deleted frames
+  (while (and tab-bar-closed-tabs
+              (not (frame-live-p (cdr (assq 'frame (car tab-bar-closed-tabs))))))
+    (pop tab-bar-closed-tabs))
+
+  (if tab-bar-closed-tabs
+      (let* ((closed (pop tab-bar-closed-tabs))
+             (frame (cdr (assq 'frame closed)))
+             (index (cdr (assq 'index closed)))
+             (tab (cdr (assq 'tab closed))))
+        (unless (eq frame (selected-frame))
+          (select-frame-set-input-focus frame))
+
+        (let ((tabs (tab-bar-tabs)))
+          (setq index (max 0 (min index (length tabs))))
+          (cl-pushnew tab (nthcdr index tabs))
+          (when (eq index 0)
+            ;; pushnew handles the head of tabs but not frame-parameter
+            (set-frame-parameter nil 'tabs tabs))
+          (tab-bar-select-tab (1+ index))))
+
+    (message "No more closed tabs to undo")))
 
 
 (defun tab-bar-rename-tab (name &optional arg)
@@ -724,13 +786,15 @@ function `tab-bar-tab-name-function'."
 ;;; Short aliases
 
 (defalias 'tab-new         'tab-bar-new-tab)
+(defalias 'tab-new-to      'tab-bar-new-tab-to)
 (defalias 'tab-close       'tab-bar-close-tab)
 (defalias 'tab-close-other 'tab-bar-close-other-tabs)
+(defalias 'tab-undo        'tab-bar-undo-close-tab)
 (defalias 'tab-select      'tab-bar-select-tab)
 (defalias 'tab-next        'tab-bar-switch-to-next-tab)
 (defalias 'tab-previous    'tab-bar-switch-to-prev-tab)
-(defalias 'tab-swap        'tab-bar-swap-tabs)
 (defalias 'tab-move        'tab-bar-move-tab)
+(defalias 'tab-move-to     'tab-bar-move-tab-to)
 (defalias 'tab-rename      'tab-bar-rename-tab)
 (defalias 'tab-list        'tab-bar-list)
 
