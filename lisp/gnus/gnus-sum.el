@@ -5940,7 +5940,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 				      (or initial gnus-large-newsgroup)
 				    number))
 			 (input
-			  (read-string
+			  (progn (backtrace) (read-string
 			   (if only-read-p
 			       (format
 				"How many articles from %s (available %d, default %d): "
@@ -5952,7 +5952,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 			      default))
 			   nil
 			   nil
-			   (number-to-string default))))
+			   (number-to-string default)))))
 		    (if (string-match "^[ \t]*$" input) number input)))
 		 ((and (> scored marked) (< scored number)
 		       (> (- scored number) 20))
