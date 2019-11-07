@@ -1599,6 +1599,11 @@ backend check whether the group actually exists."
   `(apply ,f (nconc ,args (list (and (boundp 'gnus-run-thread--subresult)
                                      gnus-run-thread--subresult)))))
 
+(defvar gnus-newsgroup-marked)
+(defvar gnus-newsgroup-spam-marked)
+(defvar gnus-article-current)
+(defvar gnus-current-score-file)
+(defvar gnus-newsgroup-charset)
 (defun gnus-thread-body (thread-name mtx working fns)
   (with-mutex mtx
     (nnheader-message 9 "gnus-thread-body: start %s" thread-name)
