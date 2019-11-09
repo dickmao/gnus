@@ -3543,6 +3543,7 @@ Returns non-nil if the setup was successful."
 They are set to the latest values they had.  These reflect the summary
 buffer that was in action when the last article was fetched."
   (when (derived-mode-p 'gnus-summary-mode)
+    (gnus-message 7 "hey10: %s" gnus-summary-buffer)
     (let ((name gnus-newsgroup-name)
 	  (marked gnus-newsgroup-marked)
 	  (spam gnus-newsgroup-spam-marked)
@@ -3577,11 +3578,16 @@ buffer that was in action when the last article was fetched."
 	      gnus-reffed-article-number reffed
 	      gnus-current-score-file score-file
 	      gnus-newsgroup-charset default-charset)
+        (gnus-message 7 "hey11: %s" gnus-summary-buffer)
 	(dolist (local gnus-newsgroup-variables)
           (set (if (consp local)
                    (car local)
                  local)
-               (pop vlist)))))))
+               (pop vlist)))
+        )
+      )
+    (gnus-message 7 "hey12: %s" gnus-summary-buffer)
+    ))
 
 (defun gnus-summary-article-unread-p (article)
   "Say whether ARTICLE is unread or not."
@@ -4051,7 +4057,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
      ;; The group was successfully selected.
      (t
       (gnus-set-global-variables)
-      (gnus-message 7 "hey2 %s %s %s" group gnus-summary-buffer kill-buffer)
+      (gnus-message 7 "bey1 %s %s %s" group gnus-summary-buffer kill-buffer)
       (when (boundp 'gnus-pick-line-number)
 	(setq gnus-pick-line-number 0))
       (when (boundp 'spam-install-hooks)
@@ -4149,6 +4155,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	(gnus-run-hooks 'gnus-summary-prepared-hook)
 	(unless (gnus-ephemeral-group-p group)
 	  (gnus-group-update-group group nil t))
+        (gnus-message 7 "bey2 %s %s %s" group gnus-summary-buffer kill-buffer)
 	t)))))
 
 (defun gnus-summary-auto-select-subject ()
