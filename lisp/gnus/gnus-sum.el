@@ -4011,6 +4011,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
      ;; This summary buffer exists already, so we just select it.
      ((not new-group)
       (gnus-set-global-variables)
+      (gnus-message 7 "hey %s %s %s" group gnus-summary-buffer kill-buffer)
       (when kill-buffer
 	(gnus-kill-or-deaden-summary kill-buffer))
       (gnus-configure-windows 'summary 'force)
@@ -4055,6 +4056,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
      ;; The group was successfully selected.
      (t
       (gnus-set-global-variables)
+      (gnus-message 7 "hey2 %s %s %s" gnus-summary-buffer kill-buffer)
       (when (boundp 'gnus-pick-line-number)
 	(setq gnus-pick-line-number 0))
       (when (boundp 'spam-install-hooks)
