@@ -11698,12 +11698,13 @@ If prefix argument ALL is non-nil, all articles are marked as read.
 If QUIETLY is non-nil, no questions will be asked."
   (interactive "P")
   (gnus-message 7 "hey: %s" gnus-summary-buffer)
-  (when (gnus-summary-catchup all quietly nil 'fast)
-    ;; Select next newsgroup or exit.
-    (if (and (not (gnus-group-quit-config gnus-newsgroup-name))
-	     (eq gnus-auto-select-next 'quietly))
-	(gnus-summary-next-group nil)
-      (gnus-summary-exit))))
+  (let ((gnus-summary-buffer gnus-summary-buffer))
+    (when (gnus-summary-catchup all quietly nil 'fast)
+      ;; Select next newsgroup or exit.
+      (if (and (not (gnus-group-quit-config gnus-newsgroup-name))
+               (eq gnus-auto-select-next 'quietly))
+          (gnus-summary-next-group nil)
+        (gnus-summary-exit)))))
 
 (defun gnus-summary-catchup-all-and-exit (&optional quietly)
   "Mark all articles in this newsgroup as read, and then exit.
