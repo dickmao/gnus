@@ -1610,30 +1610,33 @@ backend check whether the group actually exists."
 (defvar gnus-newsgroup-charset)
 (defun gnus-thread-body (thread-name mtx working fns)
   (with-mutex mtx
-    (nnheader-message 9 "gnus-thread-body: start %s" thread-name)
-    (let (gnus-run-thread--subresult
-          current-fn
-          (nntp-server-buffer working)
-          (gnus-newsgroup-name gnus-newsgroup-name)
-          (gnus-newsgroup-marked gnus-newsgroup-marked)
-          (gnus-newsgroup-spam-marked gnus-newsgroup-spam-marked)
-          (gnus-newsgroup-unreads gnus-newsgroup-unreads)
-          (gnus-current-headers gnus-current-headers)
-          (gnus-newsgroup-data gnus-newsgroup-data)
-          (gnus-summary-buffer gnus-summary-buffer)
-          (gnus-article-buffer gnus-article-buffer)
-          (gnus-original-article-buffer gnus-original-article-buffer)
-          (gnus-article-current gnus-article-current)
-          (gnus-reffed-article-number gnus-reffed-article-number)
-          (gnus-current-score-file gnus-current-score-file)
-          (gnus-newsgroup-charset gnus-newsgroup-charset))
-      (condition-case err
-          (dolist (fn fns)
-            (setq current-fn fn)
-            (setq gnus-run-thread--subresult (funcall fn)))
-        (error (nnheader-message
-                4 "gnus-thread-body: '%s' in %S"
-                (error-message-string err) current-fn))))
+    (with-current-buffer working
+      (nnheader-message 9 "gnus-thread-body: start %s (%s)"
+                        thread-name (current-buffer))
+      (make-local-variable 'gnus-summary-buffer)
+      (let (gnus-run-thread--subresult
+            current-fn
+            gnus-summary-buffer
+            (nntp-server-buffer working)
+            (gnus-newsgroup-name gnus-newsgroup-name)
+            (gnus-newsgroup-marked gnus-newsgroup-marked)
+            (gnus-newsgroup-spam-marked gnus-newsgroup-spam-marked)
+            (gnus-newsgroup-unreads gnus-newsgroup-unreads)
+            (gnus-current-headers gnus-current-headers)
+            (gnus-newsgroup-data gnus-newsgroup-data)
+            (gnus-article-buffer gnus-article-buffer)
+            (gnus-original-article-buffer gnus-original-article-buffer)
+            (gnus-article-current gnus-article-current)
+            (gnus-reffed-article-number gnus-reffed-article-number)
+            (gnus-current-score-file gnus-current-score-file)
+            (gnus-newsgroup-charset gnus-newsgroup-charset))
+        (condition-case err
+            (dolist (fn fns)
+              (setq current-fn fn)
+              (setq gnus-run-thread--subresult (funcall fn)))
+          (error (nnheader-message
+                  4 "gnus-thread-body: '%s' in %S"
+                  (error-message-string err) current-fn)))))
     (kill-buffer working)
     (nnheader-message 9 "gnus-thread-body: finish %s" thread-name)))
 
