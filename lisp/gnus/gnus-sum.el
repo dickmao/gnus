@@ -3543,7 +3543,6 @@ Returns non-nil if the setup was successful."
 They are set to the latest values they had.  These reflect the summary
 buffer that was in action when the last article was fetched."
   (when (derived-mode-p 'gnus-summary-mode)
-    (gnus-message 7 "hey10: %s %s" gnus-summary-buffer (current-buffer))
     (setq gnus-summary-buffer (current-buffer))
     (let ((name gnus-newsgroup-name)
 	  (marked gnus-newsgroup-marked)
@@ -3579,16 +3578,11 @@ buffer that was in action when the last article was fetched."
 	      gnus-reffed-article-number reffed
 	      gnus-current-score-file score-file
 	      gnus-newsgroup-charset default-charset)
-        (gnus-message 7 "hey11: %s" gnus-summary-buffer)
 	(dolist (local gnus-newsgroup-variables)
           (set (if (consp local)
                    (car local)
                  local)
-               (pop vlist)))
-        )
-      )
-    (gnus-message 7 "hey12: %s" gnus-summary-buffer)
-    ))
+               (pop vlist)))))))
 
 (defun gnus-summary-article-unread-p (article)
   "Say whether ARTICLE is unread or not."
@@ -4013,7 +4007,6 @@ If SELECT-ARTICLES, only select those articles from GROUP."
      ;; This summary buffer exists already, so we just select it.
      ((not new-group)
       (gnus-set-global-variables)
-      (gnus-message 7 "hey0 %s %s %s" group gnus-summary-buffer kill-buffer)
       (when kill-buffer
 	(gnus-kill-or-deaden-summary kill-buffer))
       (gnus-configure-windows 'summary 'force)
@@ -4058,7 +4051,6 @@ If SELECT-ARTICLES, only select those articles from GROUP."
      ;; The group was successfully selected.
      (t
       (gnus-set-global-variables)
-      (gnus-message 7 "bey1 %s %s %s" group gnus-summary-buffer kill-buffer)
       (when (boundp 'gnus-pick-line-number)
 	(setq gnus-pick-line-number 0))
       (when (boundp 'spam-install-hooks)
@@ -4156,7 +4148,6 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	(gnus-run-hooks 'gnus-summary-prepared-hook)
 	(unless (gnus-ephemeral-group-p group)
 	  (gnus-group-update-group group nil t))
-        (gnus-message 7 "bey2 %s %s %s" group gnus-summary-buffer kill-buffer)
 	t)))))
 
 (defun gnus-summary-auto-select-subject ()
@@ -11604,7 +11595,6 @@ The number of articles marked as read is returned."
   (interactive "P")
   (prog1
       (save-excursion
-        (gnus-message 7 "hey1: %s" gnus-summary-buffer)
 	(when (or quietly
 		  (not gnus-interactive-catchup) ;Without confirmation?
 		  gnus-expert-user
@@ -11612,7 +11602,6 @@ The number of articles marked as read is returned."
 		   (if all
 		       "Mark absolutely all articles as read? "
 		     "Mark all unread articles as read? ")))
-          (gnus-message 7 "hey2: %s" gnus-summary-buffer)
 	  (if (and not-mark
 		   (not gnus-newsgroup-adaptive)
 		   (not gnus-newsgroup-auto-expire)
@@ -11620,9 +11609,6 @@ The number of articles marked as read is returned."
 		   (or (not gnus-use-cache)
 		       (eq gnus-use-cache 'passive)))
 	      (progn
-
-                (gnus-message 7 "hey3: %s" gnus-summary-buffer)
-
 		(when all
 		  (setq gnus-newsgroup-marked nil
 			gnus-newsgroup-spam-marked nil
@@ -11635,14 +11621,9 @@ The number of articles marked as read is returned."
 					       gnus-newsgroup-cached))))
 	    ;; We actually mark all articles as canceled, which we
 	    ;; have to do when using auto-expiry or adaptive scoring.
-            (gnus-message 7 "hey4: %s" gnus-summary-buffer)
-
 	    (gnus-summary-show-all-threads)
-            (gnus-message 7 "hey5: %s" gnus-summary-buffer)
-
 	    (if (and to-here reverse)
 		(progn
-                  (gnus-message 7 "hey6: %s" gnus-summary-buffer)
 		  (goto-char to-here)
 		  (gnus-summary-mark-current-read-and-unread-as-read
 		   gnus-catchup-mark)
@@ -11650,13 +11631,10 @@ The number of articles marked as read is returned."
 		    (gnus-summary-mark-article-as-read gnus-catchup-mark)))
 
 	      (when (gnus-summary-first-subject (not all))
-                (gnus-message 7 "hey7: %s" gnus-summary-buffer)
 		(while (and
 			(if to-here (< (point) to-here) t)
 			(gnus-summary-mark-article-as-read gnus-catchup-mark)
-			(gnus-summary-find-next (not all)))
-                  (gnus-message 7 "hey8: %s" gnus-summary-buffer))))
-            (gnus-message 7 "hey9: %s" gnus-summary-buffer)
+			(gnus-summary-find-next (not all))))))
 	    (gnus-set-mode-line 'summary))
 	  t))
     (gnus-summary-position-point)))
@@ -11697,7 +11675,6 @@ instead, which marks only unread articles as read."
 If prefix argument ALL is non-nil, all articles are marked as read.
 If QUIETLY is non-nil, no questions will be asked."
   (interactive "P")
-  (gnus-message 7 "hey: %s" gnus-summary-buffer)
   (let ((gnus-summary-buffer gnus-summary-buffer))
     (when (gnus-summary-catchup all quietly nil 'fast)
       ;; Select next newsgroup or exit.
