@@ -1613,10 +1613,8 @@ backend check whether the group actually exists."
     (with-current-buffer working
       (nnheader-message 9 "gnus-thread-body: start %s (%s)"
                         thread-name (current-buffer))
-      (make-local-variable 'gnus-summary-buffer)
       (let (gnus-run-thread--subresult
             current-fn
-            gnus-summary-buffer
             (nntp-server-buffer working)
             (gnus-newsgroup-name gnus-newsgroup-name)
             (gnus-newsgroup-marked gnus-newsgroup-marked)
@@ -1624,6 +1622,7 @@ backend check whether the group actually exists."
             (gnus-newsgroup-unreads gnus-newsgroup-unreads)
             (gnus-current-headers gnus-current-headers)
             (gnus-newsgroup-data gnus-newsgroup-data)
+            (gnus-summary-buffer gnus-summary-buffer)
             (gnus-article-buffer gnus-article-buffer)
             (gnus-original-article-buffer gnus-original-article-buffer)
             (gnus-article-current gnus-article-current)
