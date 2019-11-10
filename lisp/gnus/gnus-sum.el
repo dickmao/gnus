@@ -3520,22 +3520,23 @@ Returns non-nil if the setup was successful."
     (gnus-kill-buffer dead-name)
     (if (get-buffer buffer)
 	(progn
-	  (setq gnus-summary-buffer buffer)
+	  (set-buffer buffer)
+	  ;; (setq gnus-summary-buffer (current-buffer))
 	  (not gnus-newsgroup-prepared))
-      (with-current-buffer (gnus-get-buffer-create buffer)
-        (setq gnus-summary-buffer (current-buffer))
-        (let ((gnus-summary-mode-group group))
-          (gnus-summary-mode))
-        (when (gnus-group-quit-config group)
-          (set (make-local-variable 'gnus-single-article-buffer) nil))
-        (turn-on-gnus-mailing-list-mode)
-        ;; These functions don't currently depend on GROUP, but might in
-        ;; the future.
-        (gnus-update-format-specifications nil 'summary 'summary-mode 'summary-dummy)
-        (gnus-update-summary-mark-positions)
-        ;; Set any local variables in the group parameters.
-        (gnus-summary-set-local-parameters gnus-newsgroup-name)
-        t))))
+      (set-buffer (gnus-get-buffer-create buffer))
+      ;; (setq gnus-summary-buffer (current-buffer))
+      (let ((gnus-summary-mode-group group))
+       (gnus-summary-mode))
+      (when (gnus-group-quit-config group)
+	(set (make-local-variable 'gnus-single-article-buffer) nil))
+      (turn-on-gnus-mailing-list-mode)
+      ;; These functions don't currently depend on GROUP, but might in
+      ;; the future.
+      (gnus-update-format-specifications nil 'summary 'summary-mode 'summary-dummy)
+      (gnus-update-summary-mark-positions)
+      ;; Set any local variables in the group parameters.
+      (gnus-summary-set-local-parameters gnus-newsgroup-name)
+      t)))
 
 (defun gnus-set-global-variables ()
   "Set the global equivalents of the buffer-local variables.
