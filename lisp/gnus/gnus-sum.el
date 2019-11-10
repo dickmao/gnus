@@ -3543,7 +3543,8 @@ Returns non-nil if the setup was successful."
 They are set to the latest values they had.  These reflect the summary
 buffer that was in action when the last article was fetched."
   (when (derived-mode-p 'gnus-summary-mode)
-    (gnus-message 7 "hey10: %s" gnus-summary-buffer)
+    (gnus-message 7 "hey10: %s %s" gnus-summary-buffer (current-buffer))
+    (setq gnus-summary-buffer (current-buffer))
     (let ((name gnus-newsgroup-name)
 	  (marked gnus-newsgroup-marked)
 	  (spam gnus-newsgroup-spam-marked)
