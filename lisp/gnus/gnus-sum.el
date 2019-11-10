@@ -3521,7 +3521,7 @@ Returns non-nil if the setup was successful."
     (if (get-buffer buffer)
 	(progn
 	  (set-buffer buffer)
-	  (setq gnus-summary-buffer (current-buffer))
+	  ;; (setq gnus-summary-buffer (current-buffer))
 	  (not gnus-newsgroup-prepared))
       (set-buffer (gnus-get-buffer-create buffer))
       (setq gnus-summary-buffer (current-buffer))
