@@ -3526,7 +3526,7 @@ Returns non-nil if the setup was successful."
       (set-buffer (gnus-get-buffer-create buffer))
       (setq gnus-summary-buffer (current-buffer))
       (let ((gnus-summary-mode-group group))
-       (gnus-summary-mode))
+        (gnus-summary-mode))
       (when (gnus-group-quit-config group)
 	(set (make-local-variable 'gnus-single-article-buffer) nil))
       (turn-on-gnus-mailing-list-mode)
