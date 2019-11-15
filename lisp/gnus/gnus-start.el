@@ -1810,8 +1810,7 @@ All FNS must finish before MTX is released."
                   elem
                 (when (and method infos (not denied-p) (not already-p))
                   (push method methods)
-                  (gnus-push-end (apply-partially
-                                  #'gnus-open-server method)
+                  (gnus-push-end (apply-partially #'gnus-open-server method)
                                  commands)
                   (when early-p
                     ;; Just mark this server as "cleared".
