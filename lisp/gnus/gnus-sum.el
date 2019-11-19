@@ -6196,8 +6196,9 @@ If WHERE is `summary', the summary mode line format will be used."
     (let (mode-string)
       ;; We evaluate this in the summary buffer since these
       ;; variables are buffer-local to that buffer.
-      (unless gnus-summary-buffer
-        (message "gnus-set-mode-line: %s %s %s %s %s"
+      (unless (buffer-live-p gnus-summary-buffer)
+        (message "gnus-set-mode-line: %s %s %s %s %s %s"
+                 gnus-summary-buffer
                  (default-value 'gnus-summary-buffer)
                  (with-current-buffer gnus-group-buffer
                    gnus-summary-buffer)
