@@ -12942,6 +12942,7 @@ UNREAD is a sorted list."
     (dolist (buffer (buffer-list))
       (when (and (setq buffer (buffer-name buffer))
 		 (string-match "Summary" buffer)
+                 (/= (aref buffer 0) ? )
 		 (with-current-buffer buffer
 		   ;; We check that this is, indeed, a summary buffer.
 		   (and (derived-mode-p 'gnus-summary-mode)
