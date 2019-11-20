@@ -1594,7 +1594,7 @@ backend check whether the group actually exists."
       num)))
 
 (defun gnus-instantiate-server-buffer (name)
-  (let ((buffer (generate-new-buffer (format " *gnus-thread %s*" name))))
+  (let ((buffer (get-buffer-create (format " *gnus-thread %s*" name))))
     (nnheader-prep-server-buffer buffer)
     buffer))
 
@@ -1626,6 +1626,7 @@ backend check whether the group actually exists."
             (gnus-article-buffer gnus-article-buffer)
             (gnus-original-article-buffer gnus-original-article-buffer)
             (gnus-article-current gnus-article-current)
+            (gnus-current-article gnus-current-article)
             (gnus-reffed-article-number gnus-reffed-article-number)
             (gnus-current-score-file gnus-current-score-file)
             (gnus-newsgroup-charset gnus-newsgroup-charset))
@@ -1658,7 +1659,7 @@ All FNS must finish before MTX is released."
       (make-thread (apply-partially
                     #'gnus-thread-body
                     thread-name mtx
-                    (gnus-instantiate-server-buffer thread-group)
+                    (gnus-instantiate-server-buffer thread-name)
                     fns)
                    thread-name))))
 
