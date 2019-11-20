@@ -1619,7 +1619,7 @@ backend check whether the group actually exists."
             (gnus-newsgroup-unreads gnus-newsgroup-unreads)
             (gnus-current-headers gnus-current-headers)
             (gnus-newsgroup-data gnus-newsgroup-data)
-            gnus-summary-buffer
+            (gnus-summary-buffer gnus-summary-buffer)
             (gnus-article-buffer gnus-article-buffer)
             (gnus-original-article-buffer gnus-original-article-buffer)
             (gnus-article-current gnus-article-current)
