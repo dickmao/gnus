@@ -3514,21 +3514,25 @@ This function does all setup work that relies on the specific
 value of GROUP, and puts the buffer in `gnus-summary-mode'.
 
 Returns non-nil if the setup was successful."
-  (let ((buffer (gnus-summary-buffer-name group))
-	(dead-name (concat "*Dead Summary " group "*")))
-    ;; If a dead summary buffer exists, we kill it.
-    (gnus-kill-buffer dead-name)
-    (if (get-buffer buffer)
-	(progn
-	  (set-buffer buffer)
-	  (setq gnus-summary-buffer (current-buffer))
-	  (not gnus-newsgroup-prepared))
+  (gnus-kill-buffer (concat "*Dead Summary " group "*")) ;; kill deadened summaries
+
+  (let* ((main-thread-p (eq (current-thread) (car (all-threads))))
+         (name (if main-thread-p
+                   (gnus-summary-buffer-name group)
+                 (format " %s %s"
+                         (thread-name (current-thread))
+                         (gnus-summary-buffer-name group)))))
+    (if (buffer-live-p name)
+        (progn
+          (set-buffer name)
+          (setq gnus-summary-buffer (current-buffer))
+          (not gnus-newsgroup-prepared))
       (set-buffer (gnus-get-buffer-create buffer))
       (setq gnus-summary-buffer (current-buffer))
       (let ((gnus-summary-mode-group group))
-       (gnus-summary-mode))
+        (gnus-summary-mode))
       (when (gnus-group-quit-config group)
-	(set (make-local-variable 'gnus-single-article-buffer) nil))
+        (set (make-local-variable 'gnus-single-article-buffer) nil))
       (turn-on-gnus-mailing-list-mode)
       ;; These functions don't currently depend on GROUP, but might in
       ;; the future.
