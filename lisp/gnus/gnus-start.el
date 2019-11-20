@@ -1608,6 +1608,7 @@ backend check whether the group actually exists."
 (defvar gnus-article-current)
 (defvar gnus-current-score-file)
 (defvar gnus-newsgroup-charset)
+(defvar gnus-current-article)
 (defun gnus-thread-body (thread-name mtx working fns)
   (with-mutex mtx
     (with-current-buffer working
