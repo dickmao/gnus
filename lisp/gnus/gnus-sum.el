@@ -3526,6 +3526,8 @@ Returns non-nil if the setup was successful."
         (progn
           (set-buffer name)
           (setq gnus-summary-buffer (current-buffer))
+          (when (eq (current-thread) (car (all-threads)))
+            (message "what is gnu-summary-buffer 0a? %s (%s)" gnus-summary-buffer (current-buffer)))
           (not gnus-newsgroup-prepared))
       (set-buffer (gnus-get-buffer-create name))
       (setq gnus-summary-buffer (current-buffer))
@@ -3540,6 +3542,8 @@ Returns non-nil if the setup was successful."
       (gnus-update-summary-mark-positions)
       ;; Set any local variables in the group parameters.
       (gnus-summary-set-local-parameters gnus-newsgroup-name)
+      (when (eq (current-thread) (car (all-threads)))
+        (message "what is gnu-summary-buffer 0b? %s (%s)" gnus-summary-buffer (current-buffer)))
       t)))
 
 (defun gnus-set-global-variables ()
@@ -5657,6 +5661,9 @@ or a straight list of headers."
   "Select newsgroup GROUP.
 If READ-ALL is non-nil, all articles in the group are selected.
 If SELECT-ARTICLES, only select those articles from GROUP."
+
+  (when (eq (current-thread) (car (all-threads)))
+    (message "what is gnu-summary-buffer 1? %s (%s)" gnus-summary-buffer (current-buffer)))
   (let* ((entry (gnus-group-entry group))
 	 ;;!!! Dirty hack; should be removed.
 	 (gnus-summary-ignore-duplicates
@@ -5761,11 +5768,15 @@ If SELECT-ARTICLES, only select those articles from GROUP."
       ;; Init the dependencies hash table.
       (setq gnus-newsgroup-dependencies
 	    (gnus-make-hashtable (length articles)))
+      (when (eq (current-thread) (car (all-threads)))
+        (message "what is gnu-summary-buffer 2? %s (%s)" gnus-summary-buffer (current-buffer)))
       (if (gnus-buffer-live-p gnus-group-buffer)
 	  (gnus-set-global-variables)
 	(set-default 'gnus-newsgroup-name gnus-newsgroup-name))
       ;; Retrieve the headers and read them in.
 
+      (when (eq (current-thread) (car (all-threads)))
+        (message "what is gnu-summary-buffer 3? %s (%s)" gnus-summary-buffer (current-buffer)))
       (setq gnus-newsgroup-headers (gnus-fetch-headers articles))
 
       ;; Kludge to avoid having cached articles nixed out in virtual groups.
@@ -7276,7 +7287,7 @@ If FORCE (the prefix), also save the .newsrc file(s)."
   "Exit reading current newsgroup, and then return to group selection mode.
 `gnus-exit-group-hook' is called with no arguments if that value is non-nil."
   (interactive)
-  (unless (eq (current-thread) (car (all-threads)))
+  (when (eq (current-thread) (car (all-threads)))
     (message "got here")
     (backtrace))
   (gnus-set-global-variables)
