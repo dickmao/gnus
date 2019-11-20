@@ -3527,7 +3527,7 @@ Returns non-nil if the setup was successful."
           (set-buffer name)
           (setq gnus-summary-buffer (current-buffer))
           (not gnus-newsgroup-prepared))
-      (set-buffer (gnus-get-buffer-create buffer))
+      (set-buffer (gnus-get-buffer-create name))
       (setq gnus-summary-buffer (current-buffer))
       (let ((gnus-summary-mode-group group))
         (gnus-summary-mode))
