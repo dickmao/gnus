@@ -1868,8 +1868,7 @@ All FNS must finish before MTX is released."
                             commands))))))
             type-cache)
       (unless background
-        (funcall coda))
-      (message "what is my group: %s" gnus-newsgroup-name))))
+        (funcall coda)))))
 
 (defun gnus-method-rank (type method)
   (cond
