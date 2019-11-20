@@ -7298,9 +7298,6 @@ If FORCE (the prefix), also save the .newsrc file(s)."
   "Exit reading current newsgroup, and then return to group selection mode.
 `gnus-exit-group-hook' is called with no arguments if that value is non-nil."
   (interactive)
-  (when (eq (current-thread) (car (all-threads)))
-    (message "got here")
-    (backtrace))
   (gnus-set-global-variables)
   (when (gnus-buffer-live-p gnus-article-buffer)
     (with-current-buffer gnus-article-buffer
