@@ -6427,6 +6427,8 @@ The resulting hash table is returned, or nil if no Xrefs were found."
 	  (gnus-group-update-group group t))))))
 
 (defun gnus-get-newsgroup-headers (&optional dependencies force-new)
+  (when (eq (current-thread) (car (all-threads)))
+    (message "what is gnus-summary-buffer 5? %s %s (%s)" gnus-summary-buffer nntp-server-buffer (current-buffer)))
   (let ((cur nntp-server-buffer)
 	(dependencies
 	 (or dependencies

@@ -1608,7 +1608,7 @@ backend check whether the group actually exists."
 (defun gnus-thread-body (thread-name mtx working fns)
   (with-mutex mtx
     (with-current-buffer working
-      (nnheader-message 9 "gnus-thread-body: start %s (%s)"
+      (nnheader-message 9 "gnus-thread-body: start %s <%s>"
                         thread-name (current-buffer))
       (let (gnus-run-thread--subresult
             current-fn
