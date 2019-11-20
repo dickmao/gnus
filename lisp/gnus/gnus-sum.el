@@ -3552,6 +3552,7 @@ They are set to the latest values they had.  These reflect the summary
 buffer that was in action when the last article was fetched."
   (when (derived-mode-p 'gnus-summary-mode)
     (setq gnus-summary-buffer (current-buffer))
+    (message "foo setting %s in %s" gnus-summary-buffer (thread-name (current-thread)))
     (let ((name gnus-newsgroup-name)
 	  (marked gnus-newsgroup-marked)
 	  (spam gnus-newsgroup-spam-marked)
