@@ -3522,7 +3522,7 @@ Returns non-nil if the setup was successful."
                  (format " %s %s"
                          (thread-name (current-thread))
                          (gnus-summary-buffer-name group)))))
-    (if (buffer-live-p name)
+    (if (gnus-buffer-live-p name)
         (progn
           (set-buffer name)
           (setq gnus-summary-buffer (current-buffer))
@@ -7287,6 +7287,9 @@ If FORCE (the prefix), also save the .newsrc file(s)."
   "Exit reading current newsgroup, and then return to group selection mode.
 `gnus-exit-group-hook' is called with no arguments if that value is non-nil."
   (interactive)
+  (unless (eq (current-thread) (car (all-threads)))
+    (message "got here")
+    (backtrace))
   (gnus-set-global-variables)
   (when (gnus-buffer-live-p gnus-article-buffer)
     (with-current-buffer gnus-article-buffer
@@ -7346,8 +7349,7 @@ If FORCE (the prefix), also save the .newsrc file(s)."
       (gnus-group-next-unread-group 1))
     (setq group-point (point))
     (gnus-article-stop-animations)
-    (if temporary
-	nil				;Nothing to do.
+    (unless temporary
       (set-buffer buf)
       (if (not gnus-kill-summary-on-exit)
 	  (progn
