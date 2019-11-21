@@ -3028,11 +3028,6 @@ When FORCE, rebuild the tool bar."
 
 (defvar bidi-paragraph-direction)
 
-(defvar gnus-summary-mode-group nil
-  "Variable for communication with `gnus-summary-mode'.
-Allows the `gnus-newsgroup-name' local variable to be set before
-the summary mode hooks are run.")
-
 (define-derived-mode gnus-summary-mode gnus-mode "Summary"
   "Major mode for reading articles.
 \\<gnus-summary-mode-map>
@@ -3051,7 +3046,6 @@ buffer; read the info pages for more information (`\\[gnus-info-find-node]').
 The following commands are available:
 
 \\{gnus-summary-mode-map}"
-  (setq gnus-newsgroup-name gnus-summary-mode-group)
   (when (gnus-visual-p 'summary-menu 'menu)
     (gnus-summary-make-menu-bar)
     (gnus-summary-make-tool-bar))
@@ -3068,13 +3062,11 @@ The following commands are available:
   (make-local-variable 'gnus-summary-line-format-spec)
   (make-local-variable 'gnus-summary-dummy-line-format)
   (make-local-variable 'gnus-summary-dummy-line-format-spec)
-  (make-local-variable 'gnus-summary-mark-positions)
-  (make-local-variable 'gnus-article-buffer)
-  (make-local-variable 'gnus-article-current)
-  (make-local-variable 'gnus-original-article-buffer)
   (mm-enable-multibyte)
   (set (make-local-variable 'bookmark-make-record-function)
-       #'gnus-summary-bookmark-make-record))
+       #'gnus-summary-bookmark-make-record)
+  (setq gnus-summary-buffer (current-buffer))
+  (set-default 'gnus-summary-buffer gnus-summary-buffer))
 
 ;; Summary data functions.
 
@@ -3420,7 +3412,6 @@ value of GROUP, and puts the buffer in `gnus-summary-mode'.
 
 Returns non-nil if the setup was successful."
   (gnus-kill-buffer (concat "*Dead Summary " group "*")) ;; kill deadened summaries
-
   (let* ((main-thread-p (eq (current-thread) (car (all-threads))))
          (name (if main-thread-p
                    (gnus-summary-buffer-name group)
@@ -3430,19 +3421,17 @@ Returns non-nil if the setup was successful."
     (if (gnus-buffer-live-p name)
         (progn
           (set-buffer name)
-          (setq gnus-summary-buffer (current-buffer))
+          (cl-assert (string= gnus-newsgroup-name group))
+          (cl-assert (string= (buffer-name gnus-summary-buffer) name))
           (when (eq (current-thread) (car (all-threads)))
-            (message "switching 0 to %s (%s)" gnus-summary-buffer (current-buffer)))
-          (when (eq (current-thread) (car (all-threads)))
+            (message "switching 0 to %s (%s)" gnus-summary-buffer (current-buffer))
             (message "gnu-summary-buffer 0a? %s (%s)" gnus-summary-buffer (current-buffer)))
           (not gnus-newsgroup-prepared))
       (set-buffer (gnus-get-buffer-create name))
-      (setq gnus-summary-buffer (current-buffer))
-      (when (eq (current-thread) (car (all-threads)))
-        (message "switching 1 to %s (%s)" gnus-summary-buffer (current-buffer)))
-      (let ((gnus-summary-mode-group group))
-        (gnus-summary-mode))
-      (when (gnus-group-quit-config group)
+      (gnus-summary-mode)
+      (setq gnus-newsgroup-name group)
+      (set-default 'gnus-newsgroup-name gnus-newsgroup-name)
+      (when (gnus-group-quit-config gnus-newsgroup-name)
         (set (make-local-variable 'gnus-single-article-buffer) nil))
       (turn-on-gnus-mailing-list-mode)
       ;; These functions don't currently depend on GROUP, but might in
@@ -3476,7 +3465,7 @@ Returns non-nil if the setup was successful."
   (make-full-mail-header 0 "" "" "05 Apr 2001 23:33:09 +0400" "" "" 0 0 "" nil))
 
 (defconst gnus--dummy-data-list
-  (list (gnus-data-make 0 nil nil gnus--dummy-mail-header nil)))
+  (list (gnus-data-make 0 nil 0 gnus--dummy-mail-header nil)))
 
 (defun gnus-make-thread-indent-array (&optional n)
   (when (or n
@@ -3492,61 +3481,59 @@ Returns non-nil if the setup was successful."
 
 (defun gnus-update-summary-mark-positions ()
   "Compute where the summary marks are to go."
-  (save-excursion
-    (when (gnus-buffer-live-p gnus-summary-buffer)
-      (set-buffer gnus-summary-buffer))
-    (let ((spec gnus-summary-line-format-spec)
-	  pos)
+  (with-current-buffer gnus-summary-buffer
+    (let (pos)
       (save-excursion
-	(gnus-set-work-buffer)
-	(let ((gnus-tmp-unread ?Z)
-	      (gnus-replied-mark ?Z)
-	      (gnus-score-below-mark ?Z)
-	      (gnus-score-over-mark ?Z)
-	      (gnus-undownloaded-mark ?Z)
-	      (gnus-summary-line-format-spec spec)
-              ;; Make sure `gnus-data-find' finds a dummy element
-              ;; so we don't call gnus-data-<field> accessors on nil.
-              (gnus-newsgroup-data gnus--dummy-data-list)
-	      (gnus-newsgroup-downloadable '(0))
-	      case-fold-search ignores)
-	  ;; Here, all marks are bound to Z.
-	  (gnus-summary-insert-line gnus--dummy-mail-header
-				    0 nil t gnus-tmp-unread t nil "" nil 1)
-	  (goto-char (point-min))
-	  ;; Memorize the positions of the same characters as dummy marks.
-	  (while (re-search-forward "[A-D]" nil t)
-	    (push (point) ignores))
-	  (erase-buffer)
-	  ;; We use A-D as dummy marks in order to know column positions
-	  ;; where marks should be inserted.
-	  (setq gnus-tmp-unread ?A
-		gnus-replied-mark ?B
-		gnus-score-below-mark ?C
-		gnus-score-over-mark ?C
-		gnus-undownloaded-mark ?D)
-	  (gnus-summary-insert-line gnus--dummy-mail-header
-				    0 nil t gnus-tmp-unread t nil "" nil 1)
-	  ;; Ignore characters which aren't dummy marks.
-	  (dolist (p ignores)
-	    (delete-region (goto-char (1- p)) p)
-	    (insert ?Z))
-	  (goto-char (point-min))
-	  (setq pos (list (cons 'unread
-				(and (search-forward "A" nil t)
-				     (- (point) (point-min) 1)))))
-	  (goto-char (point-min))
-	  (push (cons 'replied (and (search-forward "B" nil t)
-				    (- (point) (point-min) 1)))
-		pos)
-	  (goto-char (point-min))
-	  (push (cons 'score (and (search-forward "C" nil t)
-				  (- (point) (point-min) 1)))
-		pos)
-	  (goto-char (point-min))
-	  (push (cons 'download (and (search-forward "D" nil t)
-				     (- (point) (point-min) 1)))
-		pos)))
+        (gnus-set-work-buffer)
+        (let* ((spec gnus-summary-line-format-spec)
+               (gnus-tmp-unread ?Z)
+               (gnus-replied-mark ?Z)
+               (gnus-score-below-mark ?Z)
+               (gnus-score-over-mark ?Z)
+               (gnus-undownloaded-mark ?Z)
+               (gnus-summary-line-format-spec spec)
+               ;; Make sure `gnus-data-find' finds a dummy element
+               ;; so we don't call gnus-data-<field> accessors on nil.
+               (gnus-newsgroup-data gnus--dummy-data-list)
+               (gnus-newsgroup-downloadable '(0))
+               case-fold-search ignores)
+          ;; Here, all marks are bound to Z.
+          (gnus-summary-insert-line gnus--dummy-mail-header
+                                    0 nil t gnus-tmp-unread t nil "" nil 1)
+          (goto-char (point-min))
+          ;; Memorize the positions of the same characters as dummy marks.
+          (while (re-search-forward "[A-D]" nil t)
+            (push (point) ignores))
+          (erase-buffer)
+          ;; We use A-D as dummy marks in order to know column positions
+          ;; where marks should be inserted.
+          (setq gnus-tmp-unread ?A
+                gnus-replied-mark ?B
+                gnus-score-below-mark ?C
+                gnus-score-over-mark ?C
+                gnus-undownloaded-mark ?D)
+          (gnus-summary-insert-line gnus--dummy-mail-header
+                                    0 nil t gnus-tmp-unread t nil "" nil 1)
+          ;; Ignore characters which aren't dummy marks.
+          (dolist (p ignores)
+            (delete-region (goto-char (1- p)) p)
+            (insert ?Z))
+          (goto-char (point-min))
+          (setq pos (list (cons 'unread
+                                (and (search-forward "A" nil t)
+                                     (- (point) (point-min) 1)))))
+          (goto-char (point-min))
+          (push (cons 'replied (and (search-forward "B" nil t)
+                                    (- (point) (point-min) 1)))
+                pos)
+          (goto-char (point-min))
+          (push (cons 'score (and (search-forward "C" nil t)
+                                  (- (point) (point-min) 1)))
+                pos)
+          (goto-char (point-min))
+          (push (cons 'download (and (search-forward "D" nil t)
+                                     (- (point) (point-min) 1)))
+                pos)))
       (setq gnus-summary-mark-positions pos))))
 
 (defun gnus-summary-insert-dummy-line (subject number)
@@ -3667,12 +3654,13 @@ Returns non-nil if the setup was successful."
     (setq gnus-tmp-lines (if (= gnus-tmp-lines -1)
 	                     "?"
                            (number-to-string gnus-tmp-lines)))
-    (condition-case ()
+    (condition-case err
 	(put-text-property
 	 (point)
 	 (progn (eval gnus-summary-line-format-spec) (point))
 	 'gnus-number gnus-tmp-number)
-      (error (gnus-message 5 "Error updating the summary line")))
+      (error (gnus-message 3 "Error updating the summary line: %s"
+                           (error-message-string err))))
     (when (gnus-visual-p 'summary-highlight 'highlight)
       (forward-line -1)
       (gnus-summary-highlight-line)
@@ -3980,7 +3968,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	;; gnus-summary-prepare-hook since kill processing may not
 	;; work with hidden articles.
 	(gnus-summary-maybe-hide-threads)
-	(gnus-configure-windows 'summary)
+        (gnus-configure-windows 'summary)
 	(when kill-buffer
 	  (gnus-kill-or-deaden-summary kill-buffer))
 	(gnus-summary-auto-select-subject)
@@ -4001,7 +3989,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 		  (gnus-summary-goto-article art))))
 	  ;; Don't select any articles.
 	  (gnus-summary-position-point)
-	  (gnus-configure-windows 'summary 'force)
+          (gnus-configure-windows 'summary 'force)
 	  (gnus-set-mode-line 'summary))
 	(when (and gnus-auto-center-group
 		   (get-buffer-window gnus-group-buffer t))
@@ -5654,10 +5642,8 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	    (gnus-make-hashtable (length articles)))
       (when (eq (current-thread) (car (all-threads)))
         (message "gnu-summary-buffer 2? %s (%s)" gnus-summary-buffer (current-buffer)))
-      (unless (gnus-buffer-live-p gnus-group-buffer)
-	(set-default 'gnus-newsgroup-name gnus-newsgroup-name))
-      ;; Retrieve the headers and read them in.
 
+      ;; Retrieve the headers and read them in.
       (when (eq (current-thread) (car (all-threads)))
         (message "gnu-summary-buffer 3? %s (%s)" gnus-summary-buffer (current-buffer)))
       (setq gnus-newsgroup-headers (gnus-fetch-headers articles))
@@ -6094,16 +6080,6 @@ If WHERE is `summary', the summary mode line format will be used."
     (let (mode-string)
       ;; We evaluate this in the summary buffer since these
       ;; variables are buffer-local to that buffer.
-      (unless (buffer-live-p gnus-summary-buffer)
-        (message "gnus-set-mode-line: %s %s %s %s %s %s"
-                 gnus-summary-buffer
-                 (default-value 'gnus-summary-buffer)
-                 (with-current-buffer gnus-group-buffer
-                   gnus-summary-buffer)
-                 gnus-newsgroup-name
-                 (buffer-local-value 'gnus-summary-buffer (current-buffer))
-                 (buffer-name (current-buffer)))
-        (backtrace))
       (with-current-buffer gnus-summary-buffer
         ;; We bind all these variables that are used in the `eval' form
 	;; below.

@@ -4518,7 +4518,9 @@ commands:
 		 (concat " *Original Article"
 			 (substring name (match-end 0))))))
     (setq gnus-article-buffer name)
+    (set-default 'gnus-article-buffer gnus-article-buffer)
     (setq gnus-original-article-buffer original)
+    (set-default 'gnus-original-article-buffer gnus-original-article-buffer)
     (setq gnus-article-mime-handle-alist nil)
     (with-current-buffer gnus-summary-buffer
       ;; This might be a variable local to the summary buffer.
@@ -4600,109 +4602,100 @@ commands:
 ARTICLE should either be an article number or a Message-ID.
 If ARTICLE is an id, HEADER should be the article headers.
 If ALL-HEADERS is non-nil, no headers are hidden."
-  (save-excursion                ;FIXME: Shouldn't that be save-current-buffer?
-    ;; Make sure we start in a summary buffer.
-    (unless (derived-mode-p 'gnus-summary-mode)
-      (set-buffer gnus-summary-buffer))
-    (setq gnus-summary-buffer (current-buffer))
-    (let* ((summary-buffer (current-buffer))
-	   (group gnus-newsgroup-name)
-	   result)
-      (save-excursion
-	(gnus-article-setup-buffer)
-	(set-buffer gnus-article-buffer)
-	;; Deactivate active regions.
-	(when transient-mark-mode
-	  (setq mark-active nil))
-	(if (not (setq result (let ((inhibit-read-only t))
-				(gnus-request-article-this-buffer
-				 article group))))
-	    ;; There is no such article.
-	    (save-excursion
-	      (when (and (numberp article)
-			 (not (memq article gnus-newsgroup-sparse)))
-		(setq gnus-article-current
-		      (cons gnus-newsgroup-name article))
-		(set-buffer gnus-summary-buffer)
-		(setq gnus-current-article article)
-		(if (and (memq article gnus-newsgroup-undownloaded)
-			 (not (gnus-online (gnus-find-method-for-group
-					    gnus-newsgroup-name))))
-		    (progn
-		      (gnus-summary-set-agent-mark article)
-		      (message "Message marked for downloading"))
-		  (gnus-summary-mark-article article gnus-canceled-mark)
-		  (unless (memq article gnus-newsgroup-sparse)
-		    (gnus-error 1 "No such article (may have expired or been canceled)")))))
-	  (if (or (eq result 'pseudo)
-		  (eq result 'nneething))
-	      (progn
-		(with-current-buffer summary-buffer
-		  (push article gnus-newsgroup-history)
-		  (setq gnus-last-article gnus-current-article
-			gnus-current-article 0
-			gnus-current-headers nil
-			gnus-article-current nil)
-		  (if (eq result 'nneething)
-		      (gnus-configure-windows 'summary)
-		    (gnus-configure-windows 'article)))
-		(let ((gnus-article-mime-handle-alist-1
-		       gnus-article-mime-handle-alist))
-		  (gnus-set-mode-line 'article)))
-	    ;; The result from the `request' was an actual article -
-	    ;; or at least some text that is now displayed in the
-	    ;; article buffer.
-	    (when (and (numberp article)
-		       (not (eq article gnus-current-article)))
-	      ;; Seems like a new article has been selected.
-	      ;; `gnus-current-article' must be an article number.
-	      (with-current-buffer summary-buffer
-		(push article gnus-newsgroup-history)
-		(setq gnus-last-article gnus-current-article
-		      gnus-current-article article
-		      gnus-current-headers
-		      (gnus-summary-article-header gnus-current-article)
-		      gnus-article-current
-		      (cons gnus-newsgroup-name gnus-current-article))
-		(unless (mail-header-p gnus-current-headers)
-		  (setq gnus-current-headers nil))
-		(gnus-summary-goto-subject gnus-current-article)
-		(when (gnus-summary-show-thread)
-		  ;; If the summary buffer really was folded, the
-		  ;; previous goto may not actually have gone to
-		  ;; the right article, but the thread root instead.
-		  ;; So we go again.
-		  (gnus-summary-goto-subject gnus-current-article))
-		(gnus-run-hooks 'gnus-mark-article-hook)
-		(gnus-set-mode-line 'summary)
-		(when (gnus-visual-p 'article-highlight 'highlight)
-		  (gnus-run-hooks 'gnus-visual-mark-article-hook))
-		(setq gnus-have-all-headers
-		      (or all-headers gnus-show-all-headers))))
-	    (save-excursion
-	      (gnus-configure-windows 'article))
-	    (when (or (numberp article)
-		      (stringp article))
-	      (gnus-article-prepare-display)
-	      ;; Do page break.
-	      (goto-char (point-min))
-	      (when gnus-break-pages
-		(gnus-narrow-to-page)))
-	    (let ((gnus-article-mime-handle-alist-1
-		   gnus-article-mime-handle-alist))
-	      (gnus-set-mode-line 'article))
-	    (article-goto-body)
-	    (unless (bobp)
-	      (forward-line -1))
-	    (set-window-point (get-buffer-window (current-buffer)) (point))
-	    (gnus-configure-windows 'article)
-	    ;; Make sure the article begins with the top of the header.
-	    (let ((window (get-buffer-window gnus-article-buffer)))
-	      (when window
-		(with-current-buffer (window-buffer window)
-		  (set-window-point window (point-min)))))
-	    (gnus-run-hooks 'gnus-article-prepare-hook)
-	    t))))))
+  (gnus-article-setup-buffer)
+  (let ((group gnus-newsgroup-name)
+        (summary-buffer (current-buffer))
+        result)
+    (with-current-buffer gnus-article-buffer
+      ;; Deactivate active regions.
+      (when transient-mark-mode
+        (setq mark-active nil))
+      (cond ((not (setq result (let ((inhibit-read-only t))
+                                 (gnus-request-article-this-buffer
+                                  article group))))
+             (when (and (numberp article)
+                        (not (memq article gnus-newsgroup-sparse)))
+               (setq gnus-article-current
+                     (cons gnus-newsgroup-name article))
+               (setq gnus-current-article article)
+               (if (and (memq article gnus-newsgroup-undownloaded)
+                        (not (gnus-online (gnus-find-method-for-group
+                                           gnus-newsgroup-name))))
+                   (progn
+                     (gnus-summary-set-agent-mark article)
+                     (message "Message marked for downloading"))
+                 (gnus-summary-mark-article article gnus-canceled-mark)
+                 (unless (memq article gnus-newsgroup-sparse)
+                   (gnus-error
+                    1
+                    "No such article (may have expired or been canceled)")))))
+            ((or (eq result 'pseudo)
+                 (eq result 'nneething))
+             (with-current-buffer summary-buffer
+               (push article gnus-newsgroup-history)
+               (setq gnus-last-article gnus-current-article
+                     gnus-current-article 0
+                     gnus-current-headers nil
+                     gnus-article-current nil)
+               (if (eq result 'nneething)
+                   (gnus-configure-windows 'summary)
+                 (gnus-configure-windows 'article)))
+             (let ((gnus-article-mime-handle-alist-1
+                    gnus-article-mime-handle-alist))
+               (gnus-set-mode-line 'article)))
+            ;; The result from the `request' was an actual article -
+            ;; or at least some text that is now displayed in the
+            ;; article buffer.
+            (t (when (and (numberp article)
+                          (not (eq article gnus-current-article)))
+                 ;; Seems like a new article has been selected.
+                 ;; `gnus-current-article' must be an article number.
+                 (with-current-buffer summary-buffer
+                   (push article gnus-newsgroup-history)
+                   (setq gnus-last-article gnus-current-article
+                         gnus-current-article article
+                         gnus-current-headers
+                         (gnus-summary-article-header gnus-current-article)
+                         gnus-article-current
+                         (cons gnus-newsgroup-name gnus-current-article))
+                   (unless (mail-header-p gnus-current-headers)
+                     (setq gnus-current-headers nil))
+                   (gnus-summary-goto-subject gnus-current-article)
+                   (when (gnus-summary-show-thread)
+                     ;; If the summary buffer really was folded, the
+                     ;; previous goto may not actually have gone to
+                     ;; the right article, but the thread root instead.
+                     ;; So we go again.
+                     (gnus-summary-goto-subject gnus-current-article))
+                   (gnus-run-hooks 'gnus-mark-article-hook)
+                   (gnus-set-mode-line 'summary)
+                   (when (gnus-visual-p 'article-highlight 'highlight)
+                     (gnus-run-hooks 'gnus-visual-mark-article-hook))
+                   (setq gnus-have-all-headers
+                         (or all-headers gnus-show-all-headers))))
+               (gnus-configure-windows 'article)
+               (when (or (numberp article)
+                         (stringp article))
+                 (gnus-article-prepare-display)
+                 ;; Do page break.
+                 (goto-char (point-min))
+                 (when gnus-break-pages
+                   (gnus-narrow-to-page)))
+               (let ((gnus-article-mime-handle-alist-1
+                      gnus-article-mime-handle-alist))
+                 (gnus-set-mode-line 'article))
+               (article-goto-body)
+               (unless (bobp)
+                 (forward-line -1))
+               (set-window-point (get-buffer-window (current-buffer)) (point))
+               (gnus-configure-windows 'article)
+               ;; Make sure the article begins with the top of the header.
+               (let ((window (get-buffer-window gnus-article-buffer)))
+                 (when window
+                   (with-current-buffer (window-buffer window)
+                     (set-window-point window (point-min)))))
+               (gnus-run-hooks 'gnus-article-prepare-hook)
+               t)))))
 
 (defvar gnus-mime-display-attachment-buttons-in-header)
 

@@ -619,13 +619,17 @@ If N, return the Nth ancestor instead."
 
 (defun gnus-set-work-buffer ()
   "Put point in the empty Gnus work buffer."
-  (if (get-buffer gnus-work-buffer)
-      (progn
-	(set-buffer gnus-work-buffer)
-	(erase-buffer))
-    (set-buffer (gnus-get-buffer-create gnus-work-buffer))
-    (kill-all-local-variables)
-    (mm-enable-multibyte)))
+  (let ((lvars (buffer-local-variables)))
+    (ignore-errors (kill-buffer gnus-work-buffer))
+    (set-buffer (get-buffer-create gnus-work-buffer))
+    (mm-enable-multibyte)
+    (mapc (lambda (v)
+            (ignore-errors ;; in case var is read-only
+              (if (symbolp v)
+                  (makunbound v)
+                (set (make-local-variable (car v)) (cdr v)))))
+          lvars)
+    (setq buffer-read-only nil)))
 
 (defmacro gnus-group-real-name (group)
   "Find the real name of a foreign newsgroup."
