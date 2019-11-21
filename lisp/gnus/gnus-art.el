@@ -4524,8 +4524,7 @@ commands:
       ;; This might be a variable local to the summary buffer.
       (unless gnus-single-article-buffer
 	(setq gnus-article-buffer name)
-	(setq gnus-original-article-buffer original)
-	(gnus-set-global-variables)))
+	(setq gnus-original-article-buffer original)))
     (gnus-article-setup-highlight-words)
     ;; Init original article buffer.
     (with-current-buffer (gnus-get-buffer-create gnus-original-article-buffer)
@@ -4607,7 +4606,6 @@ If ALL-HEADERS is non-nil, no headers are hidden."
       (set-buffer gnus-summary-buffer))
     (setq gnus-summary-buffer (current-buffer))
     (let* ((summary-buffer (current-buffer))
-	   (gnus-tmp-internal-hook gnus-article-internal-prepare-hook)
 	   (group gnus-newsgroup-name)
 	   result)
       (save-excursion
@@ -4647,8 +4645,7 @@ If ALL-HEADERS is non-nil, no headers are hidden."
 			gnus-article-current nil)
 		  (if (eq result 'nneething)
 		      (gnus-configure-windows 'summary)
-		    (gnus-configure-windows 'article))
-		  (gnus-set-global-variables))
+		    (gnus-configure-windows 'article)))
 		(let ((gnus-article-mime-handle-alist-1
 		       gnus-article-mime-handle-alist))
 		  (gnus-set-mode-line 'article)))
@@ -4680,8 +4677,6 @@ If ALL-HEADERS is non-nil, no headers are hidden."
 		(gnus-set-mode-line 'summary)
 		(when (gnus-visual-p 'article-highlight 'highlight)
 		  (gnus-run-hooks 'gnus-visual-mark-article-hook))
-		;; Set the global newsgroup variables here.
-		(gnus-set-global-variables)
 		(setq gnus-have-all-headers
 		      (or all-headers gnus-show-all-headers))))
 	    (save-excursion
@@ -4724,7 +4719,7 @@ If ALL-HEADERS is non-nil, no headers are hidden."
     (setq buffer-read-only nil
 	  gnus-article-wash-types nil
 	  gnus-article-image-alist nil)
-    (gnus-run-hooks 'gnus-tmp-internal-hook)
+    (gnus-run-hooks 'gnus-article-internal-prepare-hook)
     (when gnus-display-mime-function
       (funcall gnus-display-mime-function))
     ;; Add attachment buttons to the header.
@@ -6644,7 +6639,6 @@ not have a face in `gnus-article-boring-faces'."
   (interactive)
   (if (not (gnus-buffer-live-p gnus-summary-buffer))
       (error "There is no summary buffer for this article buffer")
-    (gnus-article-set-globals)
     (gnus-configure-windows 'article)
     (gnus-summary-goto-subject gnus-current-article)
     (gnus-summary-position-point)))
@@ -8095,10 +8089,6 @@ url is put as the `gnus-button-url' overlay property on the button."
 
 ;;; Internal functions:
 
-(defun gnus-article-set-globals ()
-  (with-current-buffer gnus-summary-buffer
-    (gnus-set-global-variables)))
-
 (defun gnus-signature-toggle (end)
   (gnus-with-article-buffer
     (let ((inhibit-point-motion-hooks t))
@@ -8608,7 +8598,6 @@ For example:
 	      (mail-parse-ignored-charsets gnus-newsgroup-ignored-charsets)
 	      (summary-buffer gnus-summary-buffer)
 	      references point)
-	  (gnus-set-global-variables)
 	  (when (gnus-group-read-only-p)
 	    (error "The current newsgroup does not support article encrypt"))
 	  (gnus-summary-show-article t)

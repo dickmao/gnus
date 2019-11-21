@@ -1599,12 +1599,28 @@ backend check whether the group actually exists."
   `(apply ,f (nconc ,args (list (and (boundp 'gnus-run-thread--subresult)
                                      gnus-run-thread--subresult)))))
 
-(defvar gnus-newsgroup-marked)
-(defvar gnus-newsgroup-spam-marked)
-(defvar gnus-article-current)
-(defvar gnus-current-score-file)
-(defvar gnus-newsgroup-charset)
-(defvar gnus-current-article)
+(defmacro gnus-scope-globals (&rest forms)
+  "Sandbox globals for thread safety."
+  (declare (indent 0))
+  (let ((variables (quote (gnus-newsgroup-name
+                           gnus-newsgroup-marked
+                           gnus-newsgroup-spam-marked
+                           gnus-newsgroup-unreads
+                           gnus-current-headers
+                           gnus-newsgroup-data
+                           gnus-summary-buffer
+                           gnus-article-buffer
+                           gnus-original-article-buffer
+                           gnus-article-current
+                           gnus-current-article
+                           gnus-reffed-article-number
+                           gnus-current-score-file
+                           gnus-newsgroup-charset))))
+    `(progn
+       ,(cons 'inline (mapcar (lambda (v) (list 'defvar v)) variables))
+       (let ,(mapcar (apply-partially #'make-list 2) variables)
+         ,@forms))))
+
 (defun gnus-thread-body (thread-name mtx working fns)
   (with-mutex mtx
     (with-current-buffer working
@@ -1612,21 +1628,7 @@ backend check whether the group actually exists."
                         thread-name (current-buffer))
       (let (gnus-run-thread--subresult
             current-fn
-            (nntp-server-buffer working)
-            (gnus-newsgroup-name gnus-newsgroup-name)
-            (gnus-newsgroup-marked gnus-newsgroup-marked)
-            (gnus-newsgroup-spam-marked gnus-newsgroup-spam-marked)
-            (gnus-newsgroup-unreads gnus-newsgroup-unreads)
-            (gnus-current-headers gnus-current-headers)
-            (gnus-newsgroup-data gnus-newsgroup-data)
-            (gnus-summary-buffer gnus-summary-buffer)
-            (gnus-article-buffer gnus-article-buffer)
-            (gnus-original-article-buffer gnus-original-article-buffer)
-            (gnus-article-current gnus-article-current)
-            (gnus-current-article gnus-current-article)
-            (gnus-reffed-article-number gnus-reffed-article-number)
-            (gnus-current-score-file gnus-current-score-file)
-            (gnus-newsgroup-charset gnus-newsgroup-charset))
+            (nntp-server-buffer working))
         (condition-case err
             (dolist (fn fns)
               (setq current-fn fn)

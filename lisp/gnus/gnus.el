@@ -2328,8 +2328,8 @@ a string, be sure to use a valid format, see RFC 2616."
 (defvar gnus-agent-target-move-group-header "X-Gnus-Agent-Move-To")
 (defvar gnus-draft-meta-information-header "X-Draft-From")
 (defvar gnus-group-get-parameter-function #'gnus-group-get-parameter)
-(defvar gnus-original-article-buffer " *Original Article*")
-(defvar gnus-newsgroup-name nil)
+(defvar-local gnus-original-article-buffer " *Original Article*")
+(defvar-local gnus-newsgroup-name nil)
 (defvar gnus-ephemeral-servers nil)
 (defvar gnus-server-method-cache nil)
 (defvar gnus-extended-servers nil)
@@ -2441,8 +2441,8 @@ such as a mark that says whether an article is stored in the cache
     (gnus-tree-mode "(gnus)Tree Display"))
   "Alist of major modes and related Info nodes.")
 
-(defvar gnus-summary-buffer "*Summary*")
-(defvar gnus-article-buffer "*Article*")
+(defvar-local gnus-summary-buffer "*Summary*")
+(defvar-local gnus-article-buffer "*Article*")
 (defvar gnus-server-buffer "*Server*")
 
 (defvar gnus-slave nil
@@ -2506,7 +2506,7 @@ are always t.")
 ;; Save window configuration.
 (defvar gnus-prev-winconf nil)
 
-(defvar gnus-reffed-article-number nil)
+(defvar-local gnus-reffed-article-number -1)
 
 (defvar gnus-dead-summary nil)
 

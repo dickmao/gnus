@@ -820,6 +820,7 @@ This variable is local to each summary buffer and usually set by the
 score file."
   :group 'gnus-score-default
   :type 'integer)
+(make-variable-buffer-local 'gnus-summary-mark-below)
 
 (defun gnus-widget-reversible-match (_widget value)
   "Ignoring WIDGET, convert VALUE to internal form.
@@ -973,6 +974,7 @@ This variable is local to the summary buffers."
   :group 'gnus-score-default
   :type '(choice (const :tag "off" nil)
 		 integer))
+(make-variable-buffer-local 'gnus-summary-expunge-below)
 
 (defcustom gnus-thread-expunge-below nil
   "All threads that have a total score less than this variable will be expunged.
@@ -984,6 +986,7 @@ This variable is local to the summary buffers."
   :group 'gnus-score-default
   :type '(choice (const :tag "off" nil)
 		 integer))
+(make-variable-buffer-local 'gnus-thread-expunge-below)
 
 (defcustom gnus-summary-menu-hook nil
   "Hook run after the creation of the summary mode menu."
@@ -1312,6 +1315,7 @@ more custom filter functions."
   :group 'gnus-score-default
   :type '(choice (const nil)
 		 integer))
+(make-variable-buffer-local 'gnus-orphan-score)
 
 (defcustom gnus-summary-save-parts-default-mime "image/.*"
   "A regexp to match MIME parts when saving multiple parts of a
@@ -1373,12 +1377,11 @@ the normal Gnus MIME machinery."
 (defvar gnus-article-decoded-p nil)
 (defvar gnus-article-charset nil)
 (defvar gnus-article-ignored-charsets nil)
-(defvar gnus-scores-exclude-files nil)
+(defvar-local gnus-scores-exclude-files nil)
 (defvar gnus-page-broken nil)
 
 (defvar gnus-original-article nil)
-(defvar gnus-article-internal-prepare-hook nil)
-(defvar gnus-newsgroup-process-stack nil)
+(defvar-local gnus-newsgroup-process-stack nil)
 
 (defvar gnus-thread-indent-array nil)
 (defvar gnus-thread-indent-array-level gnus-thread-indent-level)
@@ -1390,16 +1393,16 @@ the normal Gnus MIME machinery."
 
 ;; Avoid highlighting in kill files.
 (defvar gnus-summary-inhibit-highlight nil)
-(defvar gnus-newsgroup-selected-overlay nil)
+(defvar-local gnus-newsgroup-selected-overlay nil)
 (defvar gnus-inhibit-limiting nil)
-(defvar gnus-newsgroup-adaptive-score-file nil)
-(defvar gnus-current-score-file nil)
+(defvar-local gnus-newsgroup-adaptive-score-file nil)
+(defvar-local gnus-current-score-file nil)
 (defvar gnus-current-move-group nil)
 (defvar gnus-current-copy-group nil)
 (defvar gnus-current-crosspost-group nil)
-(defvar gnus-newsgroup-display nil)
+(defvar-local gnus-newsgroup-display nil)
 
-(defvar gnus-newsgroup-dependencies nil
+(defvar-local gnus-newsgroup-dependencies nil
   "A hash table holding dependencies between messages.")
 ;; Dependencies are held in a tree structure: a list with the root
 ;; message as car, and each immediate child a sublist (perhaps
@@ -1408,9 +1411,9 @@ the normal Gnus MIME machinery."
 ;; dependency table using the message's Message-ID as the key.  The
 ;; root key is the string "none".
 
-(defvar gnus-newsgroup-adaptive nil)
+(defvar-local gnus-newsgroup-adaptive gnus-use-adaptive-scoring)
 (defvar gnus-summary-display-article-function nil)
-(defvar gnus-summary-highlight-line-function nil
+(defvar-local gnus-summary-highlight-line-function nil
   "Function called after highlighting a summary line.")
 
 (defvar gnus-summary-line-format-alist
@@ -1513,204 +1516,123 @@ the type of the variable (string, integer, character, etc).")
 
 (defvar gnus-newsgroup-agentized nil
   "Locally bound in each summary buffer to indicate whether the server has been agentized.")
-(defvar gnus-newsgroup-begin nil)
-(defvar gnus-newsgroup-end nil)
-(defvar gnus-newsgroup-last-rmail nil)
-(defvar gnus-newsgroup-last-mail nil)
-(defvar gnus-newsgroup-last-folder nil)
-(defvar gnus-newsgroup-last-file nil)
-(defvar gnus-newsgroup-last-directory nil)
-(defvar gnus-newsgroup-auto-expire nil)
-(defvar gnus-newsgroup-active nil)
-(defvar gnus-newsgroup-highest nil)
+(defvar-local gnus-newsgroup-begin nil)
+(defvar-local gnus-newsgroup-end nil)
+(defvar-local gnus-newsgroup-last-rmail nil)
+(defvar-local gnus-newsgroup-last-mail nil)
+(defvar-local gnus-newsgroup-last-folder nil)
+(defvar-local gnus-newsgroup-last-file nil)
+(defvar-local gnus-newsgroup-last-directory nil)
+(defvar-local gnus-newsgroup-auto-expire nil)
+(defvar-local gnus-newsgroup-active nil)
+(defvar-local gnus-newsgroup-highest nil)
 
-(defvar gnus-newsgroup-data nil)
-(defvar gnus-newsgroup-data-reverse nil)
-(defvar gnus-newsgroup-limit nil)
-(defvar gnus-newsgroup-limits nil)
-(defvar gnus-summary-use-undownloaded-faces nil)
+(defvar-local gnus-newsgroup-data nil)
+(defvar-local gnus-newsgroup-data-reverse nil)
+(defvar-local gnus-newsgroup-limit nil)
+(defvar-local gnus-newsgroup-limits nil)
+(defvar-local gnus-summary-use-undownloaded-faces nil)
 
-(defvar gnus-newsgroup-unreads nil
+(defvar-local gnus-newsgroup-unreads nil
   "Sorted list of unread articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-unselected nil
+(defvar-local gnus-newsgroup-unselected nil
   "Sorted list of unselected unread articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-reads nil
+(defvar-local gnus-newsgroup-reads nil
   "Alist of read articles and article marks in the current newsgroup.")
 
-(defvar gnus-newsgroup-expunged-tally nil)
+(defvar-local gnus-newsgroup-expunged-tally 0)
 
-(defvar gnus-newsgroup-marked nil
+(defvar-local gnus-newsgroup-marked nil
   "Sorted list of ticked articles in the current newsgroup (a subset of unread art).")
 
-(defvar gnus-newsgroup-spam-marked nil
+(defvar-local gnus-newsgroup-spam-marked nil
   "List of ranges of articles that have been marked as spam.")
 
-(defvar gnus-newsgroup-killed nil
+(defvar-local gnus-newsgroup-killed nil
   "List of ranges of articles that have been through the scoring process.")
 
-(defvar gnus-newsgroup-cached nil
+(defvar-local gnus-newsgroup-cached nil
   "Sorted list of articles that come from the article cache.")
 
-(defvar gnus-newsgroup-saved nil
+(defvar-local gnus-newsgroup-saved nil
   "List of articles that have been saved.")
 
-(defvar gnus-newsgroup-kill-headers nil)
+(defvar-local gnus-newsgroup-kill-headers nil)
 
-(defvar gnus-newsgroup-replied nil
+(defvar-local gnus-newsgroup-replied nil
   "List of articles that have been replied to in the current newsgroup.")
 
-(defvar gnus-newsgroup-forwarded nil
+(defvar-local gnus-newsgroup-forwarded nil
   "List of articles that have been forwarded in the current newsgroup.")
 
-(defvar gnus-newsgroup-expirable nil
+(defvar-local gnus-newsgroup-expirable nil
   "Sorted list of articles in the current newsgroup that can be expired.")
 
-(defvar gnus-newsgroup-processable nil
+(defvar-local gnus-newsgroup-processable nil
   "List of articles in the current newsgroup that can be processed.")
 
-(defvar gnus-newsgroup-downloadable nil
+(defvar-local gnus-newsgroup-downloadable nil
   "Sorted list of articles in the current newsgroup that can be processed.")
 
-(defvar gnus-newsgroup-unfetched nil
+(defvar-local gnus-newsgroup-unfetched nil
   "Sorted list of articles in the current newsgroup whose headers have
 not been fetched into the agent.
 
 This list will always be a subset of gnus-newsgroup-undownloaded.")
 
-(defvar gnus-newsgroup-undownloaded nil
+(defvar-local gnus-newsgroup-undownloaded nil
   "List of articles in the current newsgroup that haven't been downloaded.")
 
-(defvar gnus-newsgroup-unsendable nil
+(defvar-local gnus-newsgroup-unsendable nil
   "List of articles in the current newsgroup that won't be sent.")
 
-(defvar gnus-newsgroup-bookmarks nil
+(defvar-local gnus-newsgroup-bookmarks nil
   "List of articles in the current newsgroup that have bookmarks.")
 
-(defvar gnus-newsgroup-dormant nil
+(defvar-local gnus-newsgroup-dormant nil
   "Sorted list of dormant articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-unseen nil
+(defvar-local gnus-newsgroup-unseen nil
   "List of unseen articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-seen nil
+(defvar-local gnus-newsgroup-seen nil
   "Range of seen articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-unexist nil
+(defvar-local gnus-newsgroup-unexist nil
   "Range of unexisting articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-articles nil
+(defvar-local gnus-newsgroup-articles nil
   "List of articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-scored nil
+(defvar-local gnus-newsgroup-scored nil
   "List of scored articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-headers nil
+(defvar-local gnus-newsgroup-headers nil
   "List of article headers in the current newsgroup.")
 
-(defvar gnus-newsgroup-threads nil)
+(defvar-local gnus-newsgroup-threads nil)
 
-(defvar gnus-newsgroup-prepared nil
+(defvar-local gnus-newsgroup-prepared nil
   "Whether the current group has been prepared properly.")
 
-(defvar gnus-newsgroup-ancient nil
+(defvar-local gnus-newsgroup-ancient nil
   "List of `gnus-fetch-old-headers' articles in the current newsgroup.")
 
-(defvar gnus-newsgroup-sparse nil)
+(defvar-local gnus-newsgroup-sparse nil)
 
-(defvar gnus-current-article nil)
-(defvar gnus-article-current nil)
-(defvar gnus-current-headers nil)
-(defvar gnus-have-all-headers nil)
-(defvar gnus-last-article nil)
-(defvar gnus-newsgroup-history nil)
-(defvar gnus-newsgroup-charset nil)
+(defvar-local gnus-current-article nil)
+(defvar-local gnus-article-current nil)
+(defvar-local gnus-current-headers nil)
+(defvar-local gnus-have-all-headers nil)
+(defvar-local gnus-last-article nil)
+(defvar-local gnus-newsgroup-history nil)
+(defvar-local gnus-newsgroup-charset nil)
 (defvar gnus-newsgroup-ephemeral-charset nil)
 (defvar gnus-newsgroup-ephemeral-ignored-charsets nil)
 
 (defvar gnus-article-before-search nil)
-
-(defvar gnus-summary-local-variables
-  '(gnus-newsgroup-name
-
-    ;; Marks lists
-    gnus-newsgroup-unreads
-    gnus-newsgroup-unselected
-    gnus-newsgroup-marked
-    gnus-newsgroup-spam-marked
-    gnus-newsgroup-reads
-    gnus-newsgroup-saved
-    gnus-newsgroup-replied
-    gnus-newsgroup-forwarded
-    gnus-newsgroup-expirable
-    gnus-newsgroup-killed
-    gnus-newsgroup-unseen
-    gnus-newsgroup-seen
-    gnus-newsgroup-unexist
-    gnus-newsgroup-cached
-    gnus-newsgroup-downloadable
-    gnus-newsgroup-undownloaded
-    gnus-newsgroup-unsendable
-
-    gnus-newsgroup-begin gnus-newsgroup-end
-    gnus-newsgroup-last-rmail gnus-newsgroup-last-mail
-    gnus-newsgroup-last-folder gnus-newsgroup-last-file
-    gnus-newsgroup-last-directory
-    gnus-newsgroup-auto-expire
-    gnus-newsgroup-processable
-    gnus-newsgroup-unfetched
-    gnus-newsgroup-articles
-    gnus-newsgroup-bookmarks gnus-newsgroup-dormant
-    gnus-newsgroup-headers gnus-newsgroup-threads
-    gnus-newsgroup-prepared gnus-summary-highlight-line-function
-    gnus-current-article gnus-current-headers gnus-have-all-headers
-    gnus-last-article gnus-article-internal-prepare-hook
-    (gnus-summary-article-delete-hook . global)
-    (gnus-summary-article-move-hook . global)
-    gnus-newsgroup-dependencies gnus-newsgroup-selected-overlay
-    gnus-newsgroup-scored gnus-newsgroup-kill-headers
-    gnus-thread-expunge-below
-    gnus-score-alist gnus-current-score-file
-    (gnus-summary-expunge-below . global)
-    (gnus-summary-mark-below . global)
-    (gnus-orphan-score . global)
-    gnus-newsgroup-active gnus-scores-exclude-files
-    gnus-newsgroup-highest
-    gnus-newsgroup-history gnus-newsgroup-ancient
-    gnus-newsgroup-sparse gnus-newsgroup-process-stack
-    (gnus-newsgroup-adaptive . gnus-use-adaptive-scoring)
-    gnus-newsgroup-adaptive-score-file (gnus-reffed-article-number . -1)
-    (gnus-newsgroup-expunged-tally . 0)
-    gnus-cache-removable-articles
-    gnus-newsgroup-data gnus-newsgroup-data-reverse
-    gnus-newsgroup-limit gnus-newsgroup-limits
-    gnus-newsgroup-charset gnus-newsgroup-display
-    gnus-summary-use-undownloaded-faces)
-  "Variables that are buffer-local to the summary buffers.")
-
-(defvar gnus-newsgroup-variables nil
-  "A list of variables that have separate values in different newsgroups.
-A list of newsgroup (summary buffer) local variables, or cons of
-variables and their default expressions to be evalled (when the default
-values are not nil), that should be made global while the summary buffer
-is active.
-
-Note: The default expressions will be evaluated (using function `eval')
-before assignment to the local variable rather than just assigned to it.
-If the default expression is the symbol `global', that symbol will not
-be evaluated but the global value of the local variable will be used
-instead.
-
-These variables can be used to set variables in the group parameters
-while still allowing them to affect operations done in other buffers.
-For example:
-
-\(setq gnus-newsgroup-variables
-     \\='(message-use-followup-to
-       (gnus-visible-headers .
-	 \"^From:\\\\|^Newsgroups:\\\\|^Subject:\\\\|^Date:\\\\|^To:\")))
-")
 
 (eval-when-compile
   ;; Bind features so that require will believe that gnus-sum has
@@ -3129,9 +3051,6 @@ buffer; read the info pages for more information (`\\[gnus-info-find-node]').
 The following commands are available:
 
 \\{gnus-summary-mode-map}"
-  (let ((gnus-summary-local-variables gnus-newsgroup-variables))
-    (gnus-summary-make-local-variables))
-  (gnus-summary-make-local-variables)
   (setq gnus-newsgroup-name gnus-summary-mode-group)
   (when (gnus-visual-p 'summary-menu 'menu)
     (gnus-summary-make-menu-bar)
@@ -3153,23 +3072,9 @@ The following commands are available:
   (make-local-variable 'gnus-article-buffer)
   (make-local-variable 'gnus-article-current)
   (make-local-variable 'gnus-original-article-buffer)
-  (add-hook 'pre-command-hook #'gnus-set-global-variables nil t)
   (mm-enable-multibyte)
   (set (make-local-variable 'bookmark-make-record-function)
        #'gnus-summary-bookmark-make-record))
-
-(defun gnus-summary-make-local-variables ()
-  "Make all the local summary buffer variables."
-  (dolist (local gnus-summary-local-variables)
-    (if (consp local)
-        (let ((global (if (eq (cdr local) 'global)
-                          ;; Copy the global value of the variable.
-                          (symbol-value (car local))
-                        ;; Use the value from the list.
-                        (eval (cdr local)))))
-          (set (make-local-variable (car local)) global))
-      ;; Simple nil-valued local variable.
-      (set (make-local-variable local) nil))))
 
 ;; Summary data functions.
 
@@ -3527,10 +3432,14 @@ Returns non-nil if the setup was successful."
           (set-buffer name)
           (setq gnus-summary-buffer (current-buffer))
           (when (eq (current-thread) (car (all-threads)))
-            (message "what is gnu-summary-buffer 0a? %s (%s)" gnus-summary-buffer (current-buffer)))
+            (message "switching 0 to %s (%s)" gnus-summary-buffer (current-buffer)))
+          (when (eq (current-thread) (car (all-threads)))
+            (message "gnu-summary-buffer 0a? %s (%s)" gnus-summary-buffer (current-buffer)))
           (not gnus-newsgroup-prepared))
       (set-buffer (gnus-get-buffer-create name))
       (setq gnus-summary-buffer (current-buffer))
+      (when (eq (current-thread) (car (all-threads)))
+        (message "switching 1 to %s (%s)" gnus-summary-buffer (current-buffer)))
       (let ((gnus-summary-mode-group group))
         (gnus-summary-mode))
       (when (gnus-group-quit-config group)
@@ -3543,54 +3452,8 @@ Returns non-nil if the setup was successful."
       ;; Set any local variables in the group parameters.
       (gnus-summary-set-local-parameters gnus-newsgroup-name)
       (when (eq (current-thread) (car (all-threads)))
-        (message "what is gnu-summary-buffer 0b? %s (%s)" gnus-summary-buffer (current-buffer)))
+        (message "gnu-summary-buffer 0b? %s (%s)" gnus-summary-buffer (current-buffer)))
       t)))
-
-(defun gnus-set-global-variables ()
-  "Set the global equivalents of the buffer-local variables.
-They are set to the latest values they had.  These reflect the summary
-buffer that was in action when the last article was fetched."
-  (when (derived-mode-p 'gnus-summary-mode)
-    (setq gnus-summary-buffer (current-buffer))
-    (let ((name gnus-newsgroup-name)
-	  (marked gnus-newsgroup-marked)
-	  (spam gnus-newsgroup-spam-marked)
-	  (unread gnus-newsgroup-unreads)
-	  (headers gnus-current-headers)
-	  (data gnus-newsgroup-data)
-	  (summary gnus-summary-buffer)
-	  (article-buffer gnus-article-buffer)
-	  (original gnus-original-article-buffer)
-	  (gac gnus-article-current)
-	  (reffed gnus-reffed-article-number)
-	  (score-file gnus-current-score-file)
-	  (default-charset gnus-newsgroup-charset)
-	  vlist)
-      (dolist (local gnus-newsgroup-variables)
-        (push (eval (if (consp local) (car local)
-                      local)
-                    t)
-              vlist))
-      (setq vlist (nreverse vlist))
-      (with-temp-buffer
-	(setq gnus-newsgroup-name name
-	      gnus-newsgroup-marked marked
-	      gnus-newsgroup-spam-marked spam
-	      gnus-newsgroup-unreads unread
-	      gnus-current-headers headers
-	      gnus-newsgroup-data data
-	      gnus-article-current gac
-	      gnus-summary-buffer summary
-	      gnus-article-buffer article-buffer
-	      gnus-original-article-buffer original
-	      gnus-reffed-article-number reffed
-	      gnus-current-score-file score-file
-	      gnus-newsgroup-charset default-charset)
-	(dolist (local gnus-newsgroup-variables)
-          (set (if (consp local)
-                   (car local)
-                 local)
-               (pop vlist)))))))
 
 (defun gnus-summary-article-unread-p (article)
   "Say whether ARTICLE is unread or not."
@@ -4014,7 +3877,6 @@ If SELECT-ARTICLES, only select those articles from GROUP."
     (cond
      ;; This summary buffer exists already, so we just select it.
      ((not new-group)
-      (gnus-set-global-variables)
       (when kill-buffer
 	(gnus-kill-or-deaden-summary kill-buffer))
       (gnus-configure-windows 'summary 'force)
@@ -4058,7 +3920,6 @@ If SELECT-ARTICLES, only select those articles from GROUP."
       (signal 'quit nil))
      ;; The group was successfully selected.
      (t
-      (gnus-set-global-variables)
       (when (boundp 'gnus-pick-line-number)
 	(setq gnus-pick-line-number 0))
       (when (boundp 'spam-install-hooks)
@@ -5654,6 +5515,8 @@ or a straight list of headers."
 			      gnus-fetch-old-headers)))))
 	  (gnus-get-newsgroup-headers-xover
 	   articles force-new dependencies gnus-newsgroup-name t)
+        (when (eq (current-thread) (car (all-threads)))
+          (message "gnus-summary-buffer 4? %s (%s)" gnus-summary-buffer (current-buffer)))
 	(gnus-get-newsgroup-headers dependencies force-new))
     (gnus-message 7 "Fetching headers for %s...done" gnus-newsgroup-name)))
 
@@ -5663,7 +5526,7 @@ If READ-ALL is non-nil, all articles in the group are selected.
 If SELECT-ARTICLES, only select those articles from GROUP."
 
   (when (eq (current-thread) (car (all-threads)))
-    (message "what is gnu-summary-buffer 1? %s (%s)" gnus-summary-buffer (current-buffer)))
+    (message "gnu-summary-buffer 1? %s (%s)" gnus-summary-buffer (current-buffer)))
   (let* ((entry (gnus-group-entry group))
 	 ;;!!! Dirty hack; should be removed.
 	 (gnus-summary-ignore-duplicates
@@ -5672,6 +5535,9 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	    gnus-summary-ignore-duplicates))
 	 (info (nth 1 entry))
 	 articles fetched-articles cached)
+
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1.1? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     (unless (gnus-check-server
 	     (set (make-local-variable 'gnus-current-select-method)
@@ -5685,11 +5551,15 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	    (gnus-kill-buffer (current-buffer)))
 	  (error
 	   "Couldn't activate group %s: %s" group (gnus-status-message group))))
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1.2? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     (unless (gnus-request-group group t nil info)
       (when (derived-mode-p 'gnus-summary-mode)
 	(gnus-kill-buffer (current-buffer)))
       (error "Couldn't request group %s: %s" group (gnus-status-message group)))
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1.3? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     (when (and gnus-agent
 	       (gnus-active group))
@@ -5700,9 +5570,14 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	     group
 	     'agent-enable-undownloaded-faces)))
 
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1.4? %s (%s)" gnus-summary-buffer (current-buffer)))
+
     (setq gnus-newsgroup-name group
 	  gnus-newsgroup-unselected nil
 	  gnus-newsgroup-unreads (gnus-list-of-unread-articles group))
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1a? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     (let ((display (gnus-group-find-parameter group 'display)))
       (setq gnus-newsgroup-display
@@ -5736,20 +5611,29 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	      nil))))
 
     (gnus-summary-setup-default-charset)
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1b? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     ;; Kludge to avoid having cached articles nixed out in virtual groups.
     (when (gnus-virtual-group-p group)
       (setq cached gnus-newsgroup-cached))
+
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1c? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     (setq gnus-newsgroup-unreads
 	  (gnus-sorted-ndifference
 	   (gnus-sorted-ndifference gnus-newsgroup-unreads
 				    gnus-newsgroup-marked)
 	   gnus-newsgroup-dormant))
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1d? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     (setq gnus-newsgroup-processable nil)
 
     (gnus-update-read-articles group gnus-newsgroup-unreads t)
+    (when (eq (current-thread) (car (all-threads)))
+      (message "gnu-summary-buffer 1e? %s (%s)" gnus-summary-buffer (current-buffer)))
 
     ;; Adjust and set lists of article marks.
     (when info
@@ -5769,14 +5653,13 @@ If SELECT-ARTICLES, only select those articles from GROUP."
       (setq gnus-newsgroup-dependencies
 	    (gnus-make-hashtable (length articles)))
       (when (eq (current-thread) (car (all-threads)))
-        (message "what is gnu-summary-buffer 2? %s (%s)" gnus-summary-buffer (current-buffer)))
-      (if (gnus-buffer-live-p gnus-group-buffer)
-	  (gnus-set-global-variables)
+        (message "gnu-summary-buffer 2? %s (%s)" gnus-summary-buffer (current-buffer)))
+      (unless (gnus-buffer-live-p gnus-group-buffer)
 	(set-default 'gnus-newsgroup-name gnus-newsgroup-name))
       ;; Retrieve the headers and read them in.
 
       (when (eq (current-thread) (car (all-threads)))
-        (message "what is gnu-summary-buffer 3? %s (%s)" gnus-summary-buffer (current-buffer)))
+        (message "gnu-summary-buffer 3? %s (%s)" gnus-summary-buffer (current-buffer)))
       (setq gnus-newsgroup-headers (gnus-fetch-headers articles))
 
       ;; Kludge to avoid having cached articles nixed out in virtual groups.
@@ -6427,8 +6310,6 @@ The resulting hash table is returned, or nil if no Xrefs were found."
 	  (gnus-group-update-group group t))))))
 
 (defun gnus-get-newsgroup-headers (&optional dependencies force-new)
-  (when (eq (current-thread) (car (all-threads)))
-    (message "what is gnus-summary-buffer 5? %s %s (%s)" gnus-summary-buffer nntp-server-buffer (current-buffer)))
   (let ((cur nntp-server-buffer)
 	(dependencies
 	 (or dependencies
@@ -6593,7 +6474,7 @@ Return a list of headers that match SEQUENCE (see
 `nntp-retrieve-headers')."
   ;; Get the Xref when the users reads the articles since most/some
   ;; NNTP servers do not include Xrefs when using XOVER.
-  (setq gnus-article-internal-prepare-hook (list #'gnus-article-get-xrefs))
+  (add-hook 'gnus-article-internal-prepare-hook 'gnus-article-get-xrefs nil t)
   (let ((mail-parse-charset gnus-newsgroup-charset)
 	(mail-parse-ignored-charsets gnus-newsgroup-ignored-charsets)
 	(cur nntp-server-buffer)
@@ -7300,7 +7181,6 @@ If FORCE (the prefix), also save the .newsrc file(s)."
   "Exit reading current newsgroup, and then return to group selection mode.
 `gnus-exit-group-hook' is called with no arguments if that value is non-nil."
   (interactive)
-  (gnus-set-global-variables)
   (when (gnus-buffer-live-p gnus-article-buffer)
     (with-current-buffer gnus-article-buffer
       (mm-destroy-parts gnus-article-mime-handles)
@@ -7463,17 +7343,14 @@ The state which existed when entering the ephemeral is reset."
     (unless (eq (cdr quit-config) 'group)
       (setq gnus-current-select-method
 	    (gnus-find-method-for-group gnus-newsgroup-name)))
-    (cond ((derived-mode-p 'gnus-summary-mode)
-	   (gnus-set-global-variables))
-	  ((derived-mode-p 'gnus-article-mode)
-	   (save-current-buffer
-	     ;; The `gnus-summary-buffer' variable may point
-	     ;; to the old summary buffer when using a single
-	     ;; article buffer.
-	     (unless (gnus-buffer-live-p gnus-summary-buffer)
-	       (set-buffer gnus-group-buffer))
-	     (set-buffer gnus-summary-buffer)
-	     (gnus-set-global-variables))))
+    (when (derived-mode-p 'gnus-article-mode)
+      (save-current-buffer
+        ;; The `gnus-summary-buffer' variable may point
+        ;; to the old summary buffer when using a single
+        ;; article buffer.
+        (unless (gnus-buffer-live-p gnus-summary-buffer)
+          (set-buffer gnus-group-buffer))
+        (set-buffer gnus-summary-buffer)))
     (if (or (eq (cdr quit-config) 'article)
 	    (eq (cdr quit-config) 'pick))
 	(if (and (boundp 'gnus-pick-mode) (symbol-value 'gnus-pick-mode))
@@ -7780,7 +7657,6 @@ Given a prefix, will force an `article' buffer configuration."
 	       (with-current-buffer gnus-article-buffer
 		 (derived-mode-p 'gnus-article-mode)))
     (gnus-article-setup-buffer))
-  (gnus-set-global-variables)
   (with-current-buffer gnus-article-buffer
     ;; The buffer may be non-empty and even narrowed, so go back to
     ;; a sane state.
@@ -8014,7 +7890,6 @@ If STOP is non-nil, just stop when reaching the end of the message.
 
 Also see the variable `gnus-article-skip-boring'."
   (interactive "P")
-  (gnus-set-global-variables)
   (let ((article (gnus-summary-article-number))
 	(article-window (get-buffer-window gnus-article-buffer t))
 	endp)
@@ -9410,7 +9285,6 @@ To control what happens when you exit the group, see the
 		     params)
 	    ;; Couldn't select this doc group.
 	    (switch-to-buffer buf)
-	    (gnus-set-global-variables)
 	    (gnus-configure-windows 'summary)
 	    (gnus-message 3 "Article couldn't be entered?"))
 	(kill-buffer dig)))))
@@ -10755,7 +10629,6 @@ groups."
     (with-current-buffer gnus-summary-buffer
       (let ((mail-parse-charset gnus-newsgroup-charset)
 	    (mail-parse-ignored-charsets gnus-newsgroup-ignored-charsets))
-	(gnus-set-global-variables)
 	(when (and (not force)
 		   (gnus-group-read-only-p))
 	  (error "The current newsgroup does not support article editing"))
@@ -11701,13 +11574,12 @@ instead, which marks only unread articles as read."
 If prefix argument ALL is non-nil, all articles are marked as read.
 If QUIETLY is non-nil, no questions will be asked."
   (interactive "P")
-  (let ((gnus-summary-buffer gnus-summary-buffer))
-    (when (gnus-summary-catchup all quietly nil 'fast)
-      ;; Select next newsgroup or exit.
-      (if (and (not (gnus-group-quit-config gnus-newsgroup-name))
-               (eq gnus-auto-select-next 'quietly))
-          (gnus-summary-next-group nil)
-        (gnus-summary-exit)))))
+  (when (gnus-summary-catchup all quietly nil 'fast)
+    ;; Select next newsgroup or exit.
+    (if (and (not (gnus-group-quit-config gnus-newsgroup-name))
+             (eq gnus-auto-select-next 'quietly))
+        (gnus-summary-next-group nil)
+      (gnus-summary-exit))))
 
 (defun gnus-summary-catchup-all-and-exit (&optional quietly)
   "Mark all articles in this newsgroup as read, and then exit.
