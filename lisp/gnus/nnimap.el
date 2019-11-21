@@ -224,8 +224,6 @@ textual parts.")
           (nnimap-article-ranges (gnus-compress-sequence articles))
           (nnimap-header-parameters))
          t)
-        (when (eq (current-thread) (car (all-threads)))
-          (message "gnu-summary-buffer 3a? %s (%s)" gnus-summary-buffer (current-buffer)))
         (unless (process-live-p (get-buffer-process (current-buffer)))
           (error "Server closed connection"))
         (nnimap-transform-headers)
@@ -869,8 +867,6 @@ textual parts.")
                  server))
         (info (when info (list info)))
         active)
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.2.a? %s (%s)" gnus-summary-buffer (current-buffer)))
     (with-current-buffer nntp-server-buffer
       (when result
         (when (or (not dont-check)
@@ -878,12 +874,8 @@ textual parts.")
                              (nth 2 (assoc group nnimap-current-infos)))))
           (let ((sequences (nnimap-retrieve-group-data-early
                             server info)))
-            (when (eq (current-thread) (car (all-threads)))
-              (message "gnu-summary-buffer 1.2.b? %s (%s)" gnus-summary-buffer (current-buffer)))
             (nnimap-finish-retrieve-group-infos server info sequences
                                                 t)
-            (when (eq (current-thread) (car (all-threads)))
-              (message "gnu-summary-buffer 1.2.c? %s (%s)" gnus-summary-buffer (current-buffer)))
             (setq active (nth 2 (assoc group nnimap-current-infos)))))
         (setq active (or active '(0 . 1)))
         (erase-buffer)
@@ -892,42 +884,28 @@ textual parts.")
                         (car active)
                         (cdr active)
                         group))
-        (when (eq (current-thread) (car (all-threads)))
-          (message "gnu-summary-buffer 1.2.d? %s (%s)" gnus-summary-buffer (current-buffer)))
         t))))
 
 (deffoo nnimap-request-group-scan (group &optional server info)
   (when (nnimap-change-group nil server)
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.2a? %s (%s)" gnus-summary-buffer (current-buffer)))
     (let (marks high low)
       (with-current-buffer (nnimap-buffer)
-        (when (eq (current-thread) (car (all-threads)))
-          (message "gnu-summary-buffer 1.2b? %s (%s)" gnus-summary-buffer (current-buffer)))
         (erase-buffer)
         (let ((group-sequence
                (nnimap-send-command "SELECT %S" (nnimap-group-to-imap group)))
               (flag-sequence
                (nnimap-send-command "UID FETCH 1:* FLAGS")))
           (setf (nnimap-group nnimap-object) group)
-          (when (eq (current-thread) (car (all-threads)))
-            (message "gnu-summary-buffer 1.2c? %s (%s)" gnus-summary-buffer (current-buffer)))
           (nnimap-wait-for-response flag-sequence)
-          (when (eq (current-thread) (car (all-threads)))
-            (message "gnu-summary-buffer 1.2d? %s (%s)" gnus-summary-buffer (current-buffer)))
           (setq marks
                 (nnimap-flags-to-marks
                  (nnimap-parse-flags
                   (list (list group-sequence flag-sequence
                               1 group "SELECT")))))
-          (when (eq (current-thread) (car (all-threads)))
-            (message "gnu-summary-buffer 1.2d? %s (%s)" gnus-summary-buffer (current-buffer)))
           (when (and info
                      marks)
             (nnimap-update-infos marks (list info))
-            (nnimap-store-info info (gnus-active (gnus-info-group info)))
-            (when (eq (current-thread) (car (all-threads)))
-              (message "gnu-summary-buffer 1.2e? %s (%s)" gnus-summary-buffer (current-buffer))))
+            (nnimap-store-info info (gnus-active (gnus-info-group info))))
           (goto-char (point-max))
           (let ((uidnext (nth 5 (car marks))))
             (setq high (or (if uidnext
@@ -941,8 +919,6 @@ textual parts.")
          (format
           "211 %d %d %d %S\n" (1+ (- high low)) low high
           group))
-        (when (eq (current-thread) (car (all-threads)))
-          (message "gnu-summary-buffer 1.2f? %s (%s)" gnus-summary-buffer (current-buffer)))
         t))))
 
 (deffoo nnimap-request-create-group (group &optional server _args)
@@ -1926,9 +1902,6 @@ Return the server's response to the SELECT or EXAMINE command."
       t)
      (t
       (with-current-buffer (nnimap-buffer)
-        (when (eq (current-thread) (car (all-threads)))
-          (message "gnu-summary-buffer 1.2.1.b? %s (%s)" gnus-summary-buffer (current-buffer)))
-
         (let ((result (nnimap-command "%s %S"
                                       (if read-only
                                           "EXAMINE"
@@ -1996,11 +1969,7 @@ Return the server's response to the SELECT or EXAMINE command."
 (defun nnimap-command (&rest args)
   (erase-buffer)
   (let* ((sequence (apply #'nnimap-send-command args))
-         (_ (when (eq (current-thread) (car (all-threads)))
-              (message "gnu-summary-buffer 1.2.2.a? %s (%s)" gnus-summary-buffer (current-buffer))))
-         (response (nnimap-get-response sequence))
-         (_ (when (eq (current-thread) (car (all-threads)))
-              (message "gnu-summary-buffer 1.2.2.h? %s (%s)" gnus-summary-buffer (current-buffer)))))
+         (response (nnimap-get-response sequence)))
     (if (equal (caar response) "OK")
         (cons t response)
       (nnheader-report 'nnimap "%s"
@@ -2053,13 +2022,8 @@ Return the server's response to the SELECT or EXAMINE command."
                          ""
                        "s"))
            "")))
-      (when (eq (current-thread) (car (all-threads)))
-        (message "gnu-summary-buffer 1.2.2.d? %s (%s)" gnus-summary-buffer (current-buffer)))
       (nnheader-accept-process-output process)
       (goto-char (point-max)))
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.2.2.e? %s (%s)"
-               gnus-summary-buffer (current-buffer)))
     (setf (nnimap-initial-resync nnimap-object) 0)
     openp))
 

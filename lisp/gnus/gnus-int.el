@@ -418,10 +418,6 @@ If it is down, start it up (again)."
   "Request GROUP.  If DONT-CHECK, no information is required."
   (let ((gnus-command-method
 	 (or gnus-command-method (inline (gnus-find-method-for-group group)))))
-
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.2.1.a? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (when (stringp gnus-command-method)
       (setq gnus-command-method
 	    (inline (gnus-server-to-method gnus-command-method))))

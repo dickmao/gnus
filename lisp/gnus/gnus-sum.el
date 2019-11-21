@@ -3423,9 +3423,6 @@ Returns non-nil if the setup was successful."
           (set-buffer name)
           (cl-assert (string= gnus-newsgroup-name group))
           (cl-assert (string= (buffer-name gnus-summary-buffer) name))
-          (when (eq (current-thread) (car (all-threads)))
-            (message "switching 0 to %s (%s)" gnus-summary-buffer (current-buffer))
-            (message "gnu-summary-buffer 0a? %s (%s)" gnus-summary-buffer (current-buffer)))
           (not gnus-newsgroup-prepared))
       (set-buffer (gnus-get-buffer-create name))
       (gnus-summary-mode)
@@ -3440,8 +3437,6 @@ Returns non-nil if the setup was successful."
       (gnus-update-summary-mark-positions)
       ;; Set any local variables in the group parameters.
       (gnus-summary-set-local-parameters gnus-newsgroup-name)
-      (when (eq (current-thread) (car (all-threads)))
-        (message "gnu-summary-buffer 0b? %s (%s)" gnus-summary-buffer (current-buffer)))
       t)))
 
 (defun gnus-summary-article-unread-p (article)
@@ -5503,8 +5498,6 @@ or a straight list of headers."
 			      gnus-fetch-old-headers)))))
 	  (gnus-get-newsgroup-headers-xover
 	   articles force-new dependencies gnus-newsgroup-name t)
-        (when (eq (current-thread) (car (all-threads)))
-          (message "gnus-summary-buffer 4? %s (%s)" gnus-summary-buffer (current-buffer)))
 	(gnus-get-newsgroup-headers dependencies force-new))
     (gnus-message 7 "Fetching headers for %s...done" gnus-newsgroup-name)))
 
@@ -5512,9 +5505,6 @@ or a straight list of headers."
   "Select newsgroup GROUP.
 If READ-ALL is non-nil, all articles in the group are selected.
 If SELECT-ARTICLES, only select those articles from GROUP."
-
-  (when (eq (current-thread) (car (all-threads)))
-    (message "gnu-summary-buffer 1? %s (%s)" gnus-summary-buffer (current-buffer)))
   (let* ((entry (gnus-group-entry group))
 	 ;;!!! Dirty hack; should be removed.
 	 (gnus-summary-ignore-duplicates
@@ -5523,10 +5513,6 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	    gnus-summary-ignore-duplicates))
 	 (info (nth 1 entry))
 	 articles fetched-articles cached)
-
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.1? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (unless (gnus-check-server
 	     (set (make-local-variable 'gnus-current-select-method)
 		  (gnus-find-method-for-group group)))
@@ -5539,16 +5525,10 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	    (gnus-kill-buffer (current-buffer)))
 	  (error
 	   "Couldn't activate group %s: %s" group (gnus-status-message group))))
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.2? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (unless (gnus-request-group group t nil info)
       (when (derived-mode-p 'gnus-summary-mode)
 	(gnus-kill-buffer (current-buffer)))
       (error "Couldn't request group %s: %s" group (gnus-status-message group)))
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.3? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (when (and gnus-agent
 	       (gnus-active group))
       (gnus-agent-possibly-alter-active group (gnus-active group) info)
@@ -5557,16 +5537,9 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	    (gnus-agent-find-parameter
 	     group
 	     'agent-enable-undownloaded-faces)))
-
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1.4? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (setq gnus-newsgroup-name group
 	  gnus-newsgroup-unselected nil
 	  gnus-newsgroup-unreads (gnus-list-of-unread-articles group))
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1a? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (let ((display (gnus-group-find-parameter group 'display)))
       (setq gnus-newsgroup-display
 	    (cond
@@ -5599,30 +5572,17 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 	      nil))))
 
     (gnus-summary-setup-default-charset)
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1b? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     ;; Kludge to avoid having cached articles nixed out in virtual groups.
     (when (gnus-virtual-group-p group)
       (setq cached gnus-newsgroup-cached))
-
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1c? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (setq gnus-newsgroup-unreads
 	  (gnus-sorted-ndifference
 	   (gnus-sorted-ndifference gnus-newsgroup-unreads
 				    gnus-newsgroup-marked)
 	   gnus-newsgroup-dormant))
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1d? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     (setq gnus-newsgroup-processable nil)
 
     (gnus-update-read-articles group gnus-newsgroup-unreads t)
-    (when (eq (current-thread) (car (all-threads)))
-      (message "gnu-summary-buffer 1e? %s (%s)" gnus-summary-buffer (current-buffer)))
-
     ;; Adjust and set lists of article marks.
     (when info
       (gnus-adjust-marked-articles info))
@@ -5640,12 +5600,7 @@ If SELECT-ARTICLES, only select those articles from GROUP."
       ;; Init the dependencies hash table.
       (setq gnus-newsgroup-dependencies
 	    (gnus-make-hashtable (length articles)))
-      (when (eq (current-thread) (car (all-threads)))
-        (message "gnu-summary-buffer 2? %s (%s)" gnus-summary-buffer (current-buffer)))
-
       ;; Retrieve the headers and read them in.
-      (when (eq (current-thread) (car (all-threads)))
-        (message "gnu-summary-buffer 3? %s (%s)" gnus-summary-buffer (current-buffer)))
       (setq gnus-newsgroup-headers (gnus-fetch-headers articles))
 
       ;; Kludge to avoid having cached articles nixed out in virtual groups.
