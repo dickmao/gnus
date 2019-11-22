@@ -564,10 +564,12 @@ If N, return the Nth ancestor instead."
 	(when (string-match "\\(<[^<]+>\\)[ \t]*\\'" references)
 	  (match-string 1 references))))))
 
-(defsubst gnus-buffer-live-p (buffer)
+(defsubst gnus-buffer-live-p (buffer-or-name)
   "If BUFFER names a live buffer, return its object; else nil."
-  (and buffer (buffer-live-p (setq buffer (get-buffer buffer)))
-       buffer))
+  (when-let* ((buffer-or-name buffer-or-name)
+              (buffer (get-buffer buffer-or-name)))
+    (when (buffer-live-p buffer)
+      buffer)))
 
 (define-obsolete-function-alias 'gnus-buffer-exists-p
   'gnus-buffer-live-p "27.1")

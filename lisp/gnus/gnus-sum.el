@@ -1373,14 +1373,14 @@ the normal Gnus MIME machinery."
 ;;; Internal variables
 
 (defvar gnus-summary-display-cache nil)
-(defvar gnus-article-mime-handles nil)
-(defvar gnus-article-decoded-p nil)
-(defvar gnus-article-charset nil)
+(defvar-local gnus-article-mime-handles nil)
+(defvar-local gnus-article-decoded-p nil)
+(defvar-local gnus-article-charset nil)
 (defvar gnus-article-ignored-charsets nil)
 (defvar-local gnus-scores-exclude-files nil)
-(defvar gnus-page-broken nil)
+(defvar-local gnus-page-broken nil)
 
-(defvar gnus-original-article nil)
+(defvar-local gnus-original-article nil)
 (defvar-local gnus-newsgroup-process-stack nil)
 
 (defvar gnus-thread-indent-array nil)
@@ -3862,10 +3862,9 @@ If SELECT-ARTICLES, only select those articles from GROUP."
      ((not new-group)
       (when kill-buffer
 	(gnus-kill-or-deaden-summary kill-buffer))
-      (gnus-configure-windows 'summary 'force)
+      (gnus-configure-windows 'summary 'force) ;; pops to summary buffer
       (gnus-set-mode-line 'summary)
       (gnus-summary-position-point)
-      (message "")
       t)
      ;; We couldn't select this group.
      ((null did-select)
@@ -5779,20 +5778,19 @@ If SELECT-ARTICLES, only select those articles from GROUP."
 				      (or initial gnus-large-newsgroup)
 				    number))
 			 (input
-                          (progn (backtrace)
-                                 (read-string
-                                  (if only-read-p
-                                      (format
-                                       "How many articles from %s (available %d, default %d): "
-                                       (gnus-group-real-name gnus-newsgroup-name)
-                                       number default)
-                                    (format
-                                     "How many articles from %s (%d default): "
-                                     (gnus-group-real-name gnus-newsgroup-name)
-                                     default))
-                                  nil
-                                  nil
-                                  (number-to-string default)))))
+                          (read-string
+                           (if only-read-p
+                               (format
+                                "How many articles from %s (available %d, default %d): "
+                                (gnus-group-real-name gnus-newsgroup-name)
+                                number default)
+                             (format
+                              "How many articles from %s (%d default): "
+                              (gnus-group-real-name gnus-newsgroup-name)
+                              default))
+                           nil
+                           nil
+                           (number-to-string default))))
 		    (if (string-match "^[ \t]*$" input) number input)))
 		 ((and (> scored marked) (< scored number)
 		       (> (- scored number) 20))
@@ -7611,6 +7609,9 @@ Given a prefix, will force an `article' buffer configuration."
       (when (and gnus-use-trees gnus-show-threads)
 	(gnus-possibly-generate-tree article)
 	(gnus-highlight-selected-tree article))
+      (with-current-buffer gnus-article-buffer
+        (unless gnus-article-decoded-p
+          (mm-disable-multibyte)))
       ;; Successfully display article.
       (gnus-article-set-window-start
        (cdr (assq article gnus-newsgroup-bookmarks))))))
@@ -7626,35 +7627,27 @@ be displayed."
     (set-buffer gnus-summary-buffer))
   (let ((article (or article (gnus-summary-article-number)))
         (all-headers (and all-headers t)) ; Must be t or nil.
-	gnus-summary-display-article-function)
+        gnus-summary-display-article-function)
     (and (not pseudo)
 	 (gnus-summary-article-pseudo-p article)
 	 (error "This is a pseudo-article"))
-    (with-current-buffer gnus-summary-buffer
-      (if (or (and gnus-single-article-buffer
-		   (or (null gnus-current-article)
-		       (null gnus-article-current)
-		       (null (get-buffer gnus-article-buffer))
-		       (not (eq article (cdr gnus-article-current)))
-		       (not (equal (car gnus-article-current)
-				   gnus-newsgroup-name))
-		       (not (get-buffer gnus-original-article-buffer))))
-	      (and (not gnus-single-article-buffer)
-		   (or (null gnus-current-article)
-		       (not (get-buffer gnus-original-article-buffer))
-		       (not (eq gnus-current-article article))))
-	      force)
-	  ;; The requested article is different from the current article.
-	  (progn
-	    (gnus-summary-display-article article all-headers)
-	    (when (gnus-buffer-live-p gnus-article-buffer)
-	      (with-current-buffer gnus-article-buffer
-		(if (not gnus-article-decoded-p) ;; a local variable
-		    (mm-disable-multibyte))))
-	    (gnus-article-set-window-start
-	     (cdr (assq article gnus-newsgroup-bookmarks)))
-	    article)
-	'old))))
+    (if (or (and gnus-single-article-buffer
+                 (or (null gnus-current-article)
+                     (null gnus-article-current)
+                     (null (get-buffer gnus-article-buffer))
+                     (not (eq article (cdr gnus-article-current)))
+                     (not (equal (car gnus-article-current)
+                                 gnus-newsgroup-name))
+                     (not (get-buffer gnus-original-article-buffer))))
+            (and (not gnus-single-article-buffer)
+                 (or (null gnus-current-article)
+                     (not (get-buffer gnus-original-article-buffer))
+                     (not (eq gnus-current-article article))))
+            force)
+        ;; The requested article is different from the current article.
+        (prog1 article
+          (gnus-summary-display-article article all-headers))
+      'old)))
 
 (defun gnus-summary-force-verify-and-decrypt ()
   "Display buttons for signed/encrypted parts and verify/decrypt them."

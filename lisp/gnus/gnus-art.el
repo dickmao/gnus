@@ -1653,9 +1653,9 @@ regexp."
     "September" "October" "November" "December"))
 
 (defvar article-goto-body-goes-to-point-min-p nil)
-(defvar gnus-article-wash-types nil)
+(defvar-local gnus-article-wash-types nil)
 (defvar gnus-article-emphasis-alist nil)
-(defvar gnus-article-image-alist nil)
+(defvar-local gnus-article-image-alist nil)
 
 (defvar gnus-article-mime-handle-alist-1 nil)
 (defvar gnus-treatment-function-alist
@@ -1705,9 +1705,9 @@ regexp."
     (gnus-treat-highlight-citation gnus-article-highlight-citation)
     (gnus-treat-body-boundary gnus-article-treat-body-boundary)))
 
-(defvar gnus-article-mime-handle-alist nil)
+(defvar-local gnus-article-mime-handle-alist nil)
 (defvar article-lapsed-timer nil)
-(defvar gnus-article-current-summary nil)
+(defvar-local gnus-article-current-summary nil)
 
 (defvar gnus-article-mode-syntax-table
   (let ((table (copy-syntax-table text-mode-syntax-table)))
@@ -1728,8 +1728,6 @@ Initialized from `text-mode-syntax-table'.")
 (defvar gnus-number-of-articles-to-be-saved nil)
 
 (defvar gnus-inhibit-hiding nil)
-
-(defvar gnus-article-edit-mode nil)
 
 ;;; Macros for dealing with the article buffer.
 
@@ -4483,94 +4481,84 @@ commands:
   (when (gnus-visual-p 'article-menu 'menu)
     (gnus-article-make-menu-bar)
     (when gnus-summary-tool-bar-map
-      (set (make-local-variable 'tool-bar-map) gnus-summary-tool-bar-map)))
+      (setq-local tool-bar-map gnus-summary-tool-bar-map)))
   (gnus-update-format-specifications nil 'article-mode)
-  (set (make-local-variable 'page-delimiter) gnus-page-delimiter)
-  (set (make-local-variable 'gnus-page-broken) nil)
-  (make-local-variable 'gnus-article-current-summary)
-  (make-local-variable 'gnus-article-mime-handles)
-  (make-local-variable 'gnus-article-decoded-p)
-  (make-local-variable 'gnus-article-mime-handle-alist)
-  (make-local-variable 'gnus-article-wash-types)
-  (make-local-variable 'gnus-article-image-alist)
-  (make-local-variable 'gnus-article-charset)
-  (make-local-variable 'gnus-article-ignored-charsets)
-  (set (make-local-variable 'bookmark-make-record-function)
-       'gnus-summary-bookmark-make-record)
+
+  (setq gnus-page-broken nil)
+  (setq gnus-article-current-summary nil)
+  (setq gnus-article-decoded-p nil)
+  (setq gnus-article-mime-handle-alist nil)
+  (setq gnus-article-mime-handles nil)
+  (setq gnus-article-wash-types nil)
+  (setq gnus-article-image-alist nil)
+  (setq gnus-article-charset nil)
+  (setq gnus-article-ignored-charsets nil)
+
   ;; Prevent Emacs from displaying non-break space with
   ;; `nobreak-space' face.
-  (set (make-local-variable 'nobreak-char-display) nil)
+  (setq-local nobreak-char-display nil)
   ;; Enable `gnus-article-remove-images' to delete images shr.el renders.
-  (set (make-local-variable 'shr-put-image-function) 'gnus-shr-put-image)
+  (setq-local shr-put-image-function 'gnus-shr-put-image)
+  (setq-local page-delimiter gnus-page-delimiter)
+  (setq-local bookmark-make-record-function #'gnus-summary-bookmark-make-record)
+  (setq-local show-trailing-whitespace nil)
+
   (unless gnus-article-show-cursor
     (setq cursor-in-non-selected-windows nil))
   (gnus-set-default-directory)
   (buffer-disable-undo)
-  (setq show-trailing-whitespace nil)
   (mm-enable-multibyte))
 
 (defun gnus-article-setup-buffer ()
   "Initialize the article buffer."
-  (let* ((name (if gnus-single-article-buffer "*Article*"
-		 (concat "*Article " gnus-newsgroup-name "*")))
+  (let* ((summary gnus-summary-buffer)
+         (group gnus-newsgroup-name)
+         (name (if gnus-single-article-buffer "*Article*"
+		 (concat "*Article " group "*")))
 	 (original
 	  (progn (string-match "\\*Article" name)
 		 (concat " *Original Article"
 			 (substring name (match-end 0))))))
-    (setq gnus-article-buffer name)
-    (set-default 'gnus-article-buffer gnus-article-buffer)
-    (setq gnus-original-article-buffer original)
-    (set-default 'gnus-original-article-buffer gnus-original-article-buffer)
-    (setq gnus-article-mime-handle-alist nil)
-    (with-current-buffer gnus-summary-buffer
-      ;; This might be a variable local to the summary buffer.
-      (unless gnus-single-article-buffer
-	(setq gnus-article-buffer name)
-	(setq gnus-original-article-buffer original)))
     (gnus-article-setup-highlight-words)
-    ;; Init original article buffer.
-    (with-current-buffer (gnus-get-buffer-create gnus-original-article-buffer)
+    (setq gnus-article-buffer name)
+    (set-default 'gnus-article-buffer name)
+    (with-current-buffer (gnus-get-buffer-create original)
       (mm-enable-multibyte)
-      (setq major-mode 'gnus-original-article-mode)
-      (make-local-variable 'gnus-original-article))
-    (if (and (get-buffer name)
-	     (with-current-buffer name
-	       (if gnus-article-edit-mode
-		   (if (y-or-n-p "Article mode edit in progress; discard? ")
-		       (progn
-			 (set-buffer-modified-p nil)
-			 (gnus-kill-buffer name)
-			 (message "")
-			 nil)
-		     (error "Action aborted"))
-		 t)))
-	(let ((summary gnus-summary-buffer))
-	  (with-current-buffer name
-	    (set (make-local-variable 'gnus-article-edit-mode) nil)
-	    (gnus-article-stop-animations)
-	    (when gnus-article-mime-handles
-	      (mm-destroy-parts gnus-article-mime-handles)
-	      (setq gnus-article-mime-handles nil))
-	    ;; Set it to nil in article-buffer!
-	    (setq gnus-article-mime-handle-alist nil)
-	    (buffer-disable-undo)
-	    (setq buffer-read-only t)
-	    (unless (derived-mode-p 'gnus-article-mode)
-	      (gnus-article-mode))
-	    (set (make-local-variable 'gnus-summary-buffer) summary)
-	    (setq truncate-lines gnus-article-truncate-lines)
-	    (current-buffer)))
-      (let ((summary gnus-summary-buffer))
-	(with-current-buffer (gnus-get-buffer-create name)
-	  (gnus-article-mode)
-	  (setq truncate-lines gnus-article-truncate-lines)
-	  (set (make-local-variable 'gnus-summary-buffer) summary)
-	  (gnus-summary-set-local-parameters gnus-newsgroup-name)
-	  (when article-lapsed-timer
-	    (gnus-stop-date-timer))
-	  (when gnus-article-update-date-headers
-	    (gnus-start-date-timer gnus-article-update-date-headers))
-	  (current-buffer))))))
+      (setq major-mode 'gnus-original-article-mode))
+    (setq gnus-original-article-buffer original)
+    (set-default 'gnus-original-article-buffer original)
+    (if-let ((existing-buffer (get-buffer name)))
+        (with-current-buffer existing-buffer
+          (cond ((eq major-mode 'gnus-article-edit-mode)
+                 (if (y-or-n-p "Article mode edit in progress; discard? ")
+                     (progn
+                       (set-buffer-modified-p nil)
+                       (gnus-kill-buffer existing-buffer)
+                       (message "")
+                       nil)
+                   (error "Action aborted")))
+                (t (gnus-article-stop-animations)
+                   (when gnus-article-mime-handles
+                     (mm-destroy-parts gnus-article-mime-handles)
+                     (setq gnus-article-mime-handles nil))
+                   (setq gnus-article-mime-handle-alist nil)
+                   (buffer-disable-undo)
+                   (setq buffer-read-only t)
+                   (unless (derived-mode-p 'gnus-article-mode)
+                     (gnus-article-mode))
+                   (setq gnus-summary-buffer summary)
+                   (setq truncate-lines gnus-article-truncate-lines)
+                   (current-buffer))))
+      (with-current-buffer (gnus-get-buffer-create name)
+        (gnus-article-mode)
+        (setq truncate-lines gnus-article-truncate-lines)
+        (setq gnus-summary-buffer summary)
+        (gnus-summary-set-local-parameters group)
+        (when article-lapsed-timer
+          (gnus-stop-date-timer))
+        (when gnus-article-update-date-headers
+          (gnus-start-date-timer gnus-article-update-date-headers))
+        (current-buffer)))))
 
 (defun gnus-article-stop-animations ()
   (cancel-function-timers 'image-animate-timeout))
@@ -7208,10 +7196,9 @@ This is an extended text-mode.
 \\{gnus-article-edit-mode-map}"
   (make-local-variable 'gnus-article-edit-done-function)
   (make-local-variable 'gnus-prev-winconf)
-  (set (make-local-variable 'font-lock-defaults)
-       '(message-font-lock-keywords t))
-  (set (make-local-variable 'mail-header-separator) "")
-  (set (make-local-variable 'gnus-article-edit-mode) t)
+  (setq-local font-lock-defaults
+              '(message-font-lock-keywords t))
+  (setq-local mail-header-separator "")
   (easy-menu-add message-mode-field-menu message-mode-map)
   (mml-mode)
   (setq buffer-read-only nil)
