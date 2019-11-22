@@ -367,23 +367,10 @@ textual parts.")
     (gnus-add-buffer)
     (set (make-local-variable 'after-change-functions) nil)
     (set (make-local-variable 'nnimap-object)
-         (make-nnimap :server (nnoo-current-server 'nnimap)
-                      :initial-resync 0))
+	 (make-nnimap :server (nnoo-current-server 'nnimap)
+		      :initial-resync 0))
     (push (list buffer (current-buffer)) nnimap-connection-alist)
     (push (current-buffer) nnimap-process-buffers)
-    (with-current-buffer buffer
-      (add-hook 'kill-buffer-hook
-                (apply-partially
-                 (lambda (buffer)
-                   (when-let ((pbuffer
-                               (car (alist-get buffer nnimap-connection-alist))))
-                     (setq nnimap-process-buffers
-                           (delq pbuffer nnimap-process-buffers))
-                     (kill-buffer pbuffer) ;; should HUP its process
-                     (setq nnimap-connection-alist
-                           (assq-delete-all buffer nnimap-connection-alist))))
-                 buffer)
-                nil t))
     (current-buffer)))
 
 (defvar auth-source-creation-prompts)
