@@ -4538,33 +4538,41 @@ the id of the parent article (if any)."
            (cdr datal)
            (- (gnus-data-pos data) (gnus-data-pos (cadr datal)) inserted)))))))
 
+(defmacro gnus-summary-assume-in-summary (&rest body)
+  "If we are not in an summary buffer, go there, and execute BODY.  Restore."
+  (declare (indent 0))
+  `(save-current-buffer
+     (unless (derived-mode-p 'gnus-summary-mode)
+       (set-buffer gnus-summary-buffer))
+     ,@body))
+
 (defun gnus-summary-update-article (article &optional iheader)
   "Update ARTICLE in the summary buffer."
-  (set-buffer gnus-summary-buffer)
-  (let* ((header (gnus-summary-article-header article))
-	 (id (mail-header-id header))
-	 (data (gnus-data-find article))
-	 (thread (gnus-id-to-thread id))
-	 (references (mail-header-references header))
-	 (parent
-	  (gnus-id-to-thread
-	   (or (gnus-parent-id
-		(when (and references
-			   (not (equal "" references)))
-		  references))
-	       "none")))
-	 (inhibit-read-only t)
-	 (old (car thread)))
-    (when thread
-      (unless iheader
-	(setcar thread nil)
-	(when parent
-	  (delq thread parent)))
-      (if (gnus-summary-insert-subject id header)
-	  ;; Set the (possibly) new article number in the data structure.
-	  (setf (gnus-data-number data) (gnus-id-to-article id))
-	(setcar thread old)
-	nil))))
+  (gnus-summary-assume-in-summary
+    (let* ((header (gnus-summary-article-header article))
+           (id (mail-header-id header))
+           (data (gnus-data-find article))
+           (thread (gnus-id-to-thread id))
+           (references (mail-header-references header))
+           (parent
+            (gnus-id-to-thread
+             (or (gnus-parent-id
+                  (when (and references
+                             (not (equal "" references)))
+                    references))
+                 "none")))
+           (inhibit-read-only t)
+           (old (car thread)))
+      (when thread
+        (unless iheader
+          (setcar thread nil)
+          (when parent
+            (delq thread parent)))
+        (if (gnus-summary-insert-subject id header)
+            ;; Set the (possibly) new article number in the data structure.
+            (setf (gnus-data-number data) (gnus-id-to-article id))
+          (setcar thread old)
+          nil)))))
 
 (defun gnus-rebuild-thread (id &optional line)
   "Rebuild the thread containing ID.
@@ -7582,39 +7590,47 @@ Given a prefix, will force an `article' buffer configuration."
 
 (defun gnus-summary-display-article (article &optional all-header)
   "Display ARTICLE in article buffer."
-  (unless (and (gnus-buffer-live-p gnus-article-buffer)
-	       (with-current-buffer gnus-article-buffer
-		 (derived-mode-p 'gnus-article-mode)))
-    (gnus-article-setup-buffer))
-  (with-current-buffer gnus-article-buffer
-    ;; The buffer may be non-empty and even narrowed, so go back to
-    ;; a sane state.
-    (widen)
-    ;; We're going to erase the buffer anyway so do it now: it can save us from
-    ;; uselessly performing multibyte-conversion of the current content.
-    (let ((inhibit-read-only t)) (erase-buffer))
-    (setq gnus-article-charset gnus-newsgroup-charset)
-    (setq gnus-article-ignored-charsets gnus-newsgroup-ignored-charsets)
-    (mm-enable-multibyte))
-  (when article
-    (prog1
-	(funcall (or gnus-summary-display-article-function
-                     #'gnus-article-prepare)
-                 article all-header)
-      (gnus-run-hooks 'gnus-select-article-hook)
-      (when (and gnus-current-article
-		 (not (zerop gnus-current-article)))
-	(gnus-summary-goto-subject gnus-current-article))
-      (gnus-summary-recenter)
-      (when (and gnus-use-trees gnus-show-threads)
-	(gnus-possibly-generate-tree article)
-	(gnus-highlight-selected-tree article))
-      (with-current-buffer gnus-article-buffer
-        (unless gnus-article-decoded-p
-          (mm-disable-multibyte)))
-      ;; Successfully display article.
-      (gnus-article-set-window-start
-       (cdr (assq article gnus-newsgroup-bookmarks))))))
+  (gnus-summary-assume-in-summary
+    (cl-block nil
+      (let ((result
+             (cond ((not article)
+                    (gnus-message 3 "Article cannot be displayed")
+                    (cl-return))
+                   (gnus-summary-display-article-function
+                    (unless (and (gnus-buffer-live-p gnus-article-buffer)
+                                 (with-current-buffer gnus-article-buffer
+                                   (derived-mode-p 'gnus-article-mode)))
+                      (gnus-article-setup-buffer))
+                    (with-current-buffer gnus-article-buffer
+                      ;; The buffer may be non-empty and even narrowed,
+                      ;; so go back to a sane state.
+                      (widen)
+                      ;; We're going to erase the buffer anyway so do it now:
+                      ;; it can save us from uselessly performing
+                      ;; multibyte-conversion of the current content.
+                      (let ((inhibit-read-only t)) (erase-buffer))
+                      (setq gnus-article-charset gnus-newsgroup-charset)
+                      (setq gnus-article-ignored-charsets
+                            gnus-newsgroup-ignored-charsets)
+                      (mm-enable-multibyte))
+                    (funcall gnus-summary-display-article-function
+                             article all-header))
+                   (t (gnus-article-prepare article all-header)))))
+        (gnus-run-hooks 'gnus-select-article-hook)
+        (when (and gnus-current-article
+                   (not (zerop gnus-current-article)))
+          (gnus-summary-goto-subject gnus-current-article))
+        (gnus-summary-recenter)
+        (when (and gnus-use-trees gnus-show-threads)
+          (gnus-possibly-generate-tree article)
+          (gnus-highlight-selected-tree article))
+        (with-current-buffer gnus-article-buffer
+          (unless gnus-article-decoded-p
+            (mm-disable-multibyte)))
+        ;; Successfully display article.
+        (gnus-article-set-window-start
+         (cdr (assq article gnus-newsgroup-bookmarks)))
+        result))))
 
 (defun gnus-summary-select-article (&optional all-headers force pseudo article)
   "Select the current article.
@@ -7623,41 +7639,40 @@ non-nil, the article will be re-fetched even if it already present in
 the article buffer.  If PSEUDO is non-nil, pseudo-articles will also
 be displayed."
   ;; Make sure we are in the summary buffer to work around bbdb bug.
-  (unless (derived-mode-p 'gnus-summary-mode)
-    (set-buffer gnus-summary-buffer))
-  (let ((article (or article (gnus-summary-article-number)))
-        (all-headers (and all-headers t)) ; Must be t or nil.
-        gnus-summary-display-article-function)
-    (and (not pseudo)
-	 (gnus-summary-article-pseudo-p article)
-	 (error "This is a pseudo-article"))
-    (if (or (and gnus-single-article-buffer
-                 (or (null gnus-current-article)
-                     (null gnus-article-current)
-                     (null (get-buffer gnus-article-buffer))
-                     (not (eq article (cdr gnus-article-current)))
-                     (not (equal (car gnus-article-current)
-                                 gnus-newsgroup-name))
-                     (not (get-buffer gnus-original-article-buffer))))
-            (and (not gnus-single-article-buffer)
-                 (or (null gnus-current-article)
-                     (not (get-buffer gnus-original-article-buffer))
-                     (not (eq gnus-current-article article))))
-            force)
-        ;; The requested article is different from the current article.
-        (prog1 article
-          (gnus-summary-display-article article all-headers))
-      'old)))
+  (gnus-summary-assume-in-summary
+    (let ((article (or article (gnus-summary-article-number)))
+          (all-headers (and all-headers t)) ; Must be t or nil.
+          gnus-summary-display-article-function)
+      (and (not pseudo)
+           (gnus-summary-article-pseudo-p article)
+           (error "This is a pseudo-article"))
+      (if (or (and gnus-single-article-buffer
+                   (or (null gnus-current-article)
+                       (null gnus-article-current)
+                       (null (get-buffer gnus-article-buffer))
+                       (not (eq article (cdr gnus-article-current)))
+                       (not (equal (car gnus-article-current)
+                                   gnus-newsgroup-name))
+                       (not (get-buffer gnus-original-article-buffer))))
+              (and (not gnus-single-article-buffer)
+                   (or (null gnus-current-article)
+                       (not (get-buffer gnus-original-article-buffer))
+                       (not (eq gnus-current-article article))))
+              force)
+          ;; The requested article is different from the current article.
+          (prog1 article
+            (gnus-summary-display-article article all-headers))
+        'old))))
 
 (defun gnus-summary-force-verify-and-decrypt ()
   "Display buttons for signed/encrypted parts and verify/decrypt them."
   (interactive)
   (let ((mm-verify-option 'known)
-	(mm-decrypt-option 'known)
-	(gnus-article-emulate-mime t)
-	(gnus-buttonized-mime-types (append (list "multipart/signed"
-						  "multipart/encrypted")
-					    gnus-buttonized-mime-types)))
+        (mm-decrypt-option 'known)
+        (gnus-article-emulate-mime t)
+        (gnus-buttonized-mime-types (append (list "multipart/signed"
+                                                  "multipart/encrypted")
+                                            gnus-buttonized-mime-types)))
     (gnus-summary-select-article nil 'force)))
 
 (defun gnus-summary-next-article (&optional unread subject backward push)
@@ -7667,68 +7682,67 @@ If SUBJECT, only articles with SUBJECT are selected.
 If BACKWARD, the previous article is selected instead of the next."
   (interactive "P")
   ;; Make sure we are in the summary buffer.
-  (unless (derived-mode-p 'gnus-summary-mode)
-    (set-buffer gnus-summary-buffer))
-  (cond
-   ;; Is there such an article?
-   ((and (gnus-summary-search-forward unread subject backward)
-	 (or (gnus-summary-display-article (gnus-summary-article-number))
-	     (eq (gnus-summary-article-mark) gnus-canceled-mark)))
-    (gnus-summary-position-point))
-   ;; If not, we try the first unread, if that is wanted.
-   ((and subject
-	 gnus-auto-select-same
-	 (gnus-summary-first-unread-article))
-    (gnus-summary-position-point)
-    (gnus-message 6 "Wrapped"))
-   ;; Try to get next/previous article not displayed in this group.
-   ((and gnus-auto-extend-newsgroup
-	 (not unread) (not subject))
-    (gnus-summary-goto-article
-     (if backward (1- gnus-newsgroup-begin) (1+ gnus-newsgroup-end))
-     nil (count-lines (point-min) (point))))
-   ;; Go to next/previous group.
-   (t
-    (unless (gnus-ephemeral-group-p gnus-newsgroup-name)
-      (gnus-summary-jump-to-group gnus-newsgroup-name))
-    (let ((cmd last-command-event)
-	  (point
-	   (with-current-buffer gnus-group-buffer
-	     (point)))
-	  (current-summary (current-buffer))
-	  (group
-	   (if (eq gnus-keep-same-level 'best)
-	       (gnus-summary-best-group gnus-newsgroup-name)
-	     (gnus-summary-search-group backward gnus-keep-same-level))))
-      ;; Select next unread newsgroup automagically.
-      (cond
-       ((or (not gnus-auto-select-next)
-	    (not cmd))
-	(unless (eq gnus-auto-select-next 'quietly)
-	  (gnus-message 6 "No more%s articles" (if unread " unread" ""))))
-       ((or (eq gnus-auto-select-next 'quietly)
-	    (and (eq gnus-auto-select-next 'slightly-quietly)
-		 push)
-	    (and (eq gnus-auto-select-next 'almost-quietly)
-		 (gnus-summary-last-article-p)))
-	;; Select quietly.
-	(if (gnus-ephemeral-group-p gnus-newsgroup-name)
-	    (gnus-summary-exit)
-	  (unless (eq gnus-auto-select-next 'quietly)
-	    (gnus-message 6 "No more%s articles (%s)..."
-			  (if unread " unread" "")
-			  (if group (concat "selecting " group)
-			    "exiting")))
-	  (gnus-summary-next-group nil group backward)))
-       (t
-	(when (numberp last-input-event)
-	  ;; Somehow or other, we may now have selected a different
-	  ;; window.  Make point go back to the summary buffer.
-	  (when (eq current-summary (current-buffer))
-            ;; FIXME: This burps when get-buffer-window returns nil.
-	    (select-window (get-buffer-window current-summary 0)))
-	  (gnus-summary-walk-group-buffer
-	   gnus-newsgroup-name cmd unread backward point))))))))
+  (gnus-summary-assume-in-summary
+    (cond
+     ;; Is there such an article?
+     ((and (gnus-summary-search-forward unread subject backward)
+           (or (gnus-summary-display-article (gnus-summary-article-number))
+               (eq (gnus-summary-article-mark) gnus-canceled-mark)))
+      (gnus-summary-position-point))
+     ;; If not, we try the first unread, if that is wanted.
+     ((and subject
+           gnus-auto-select-same
+           (gnus-summary-first-unread-article))
+      (gnus-summary-position-point)
+      (gnus-message 6 "Wrapped"))
+     ;; Try to get next/previous article not displayed in this group.
+     ((and gnus-auto-extend-newsgroup
+           (not unread) (not subject))
+      (gnus-summary-goto-article
+       (if backward (1- gnus-newsgroup-begin) (1+ gnus-newsgroup-end))
+       nil (count-lines (point-min) (point))))
+     ;; Go to next/previous group.
+     (t
+      (unless (gnus-ephemeral-group-p gnus-newsgroup-name)
+        (gnus-summary-jump-to-group gnus-newsgroup-name))
+      (let ((cmd last-command-event)
+            (point
+             (with-current-buffer gnus-group-buffer
+               (point)))
+            (current-summary (current-buffer))
+            (group
+             (if (eq gnus-keep-same-level 'best)
+                 (gnus-summary-best-group gnus-newsgroup-name)
+               (gnus-summary-search-group backward gnus-keep-same-level))))
+        ;; Select next unread newsgroup automagically.
+        (cond
+         ((or (not gnus-auto-select-next)
+              (not cmd))
+          (unless (eq gnus-auto-select-next 'quietly)
+            (gnus-message 6 "No more%s articles" (if unread " unread" ""))))
+         ((or (eq gnus-auto-select-next 'quietly)
+              (and (eq gnus-auto-select-next 'slightly-quietly)
+                   push)
+              (and (eq gnus-auto-select-next 'almost-quietly)
+                   (gnus-summary-last-article-p)))
+          ;; Select quietly.
+          (if (gnus-ephemeral-group-p gnus-newsgroup-name)
+              (gnus-summary-exit)
+            (unless (eq gnus-auto-select-next 'quietly)
+              (gnus-message 6 "No more%s articles (%s)..."
+                            (if unread " unread" "")
+                            (if group (concat "selecting " group)
+                              "exiting")))
+            (gnus-summary-next-group nil group backward)))
+         (t
+          (when (numberp last-input-event)
+            ;; Somehow or other, we may now have selected a different
+            ;; window.  Make point go back to the summary buffer.
+            (when (eq current-summary (current-buffer))
+              ;; FIXME: This burps when get-buffer-window returns nil.
+              (select-window (get-buffer-window current-summary 0)))
+            (gnus-summary-walk-group-buffer
+             gnus-newsgroup-name cmd unread backward point)))))))))
 
 (defun gnus-summary-walk-group-buffer (_from-group cmd unread backward start)
   (let ((keystrokes '((?\C-n (gnus-group-next-unread-group 1))
