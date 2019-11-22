@@ -3474,7 +3474,11 @@ server is native)."
 
 (defun gnus-summary-buffer-name (group)
   "Return the summary buffer name of GROUP."
-  (concat "*Summary " group "*"))
+  (let ((name (concat "*Summary " group "*"))
+        (main-thread-p (eq (current-thread) (car (all-threads)))))
+    (if main-thread-p
+        name
+      (format " %s %s" (thread-name (current-thread)) name))))
 
 (defun gnus-group-method (group)
   "Return the server or method used for selecting GROUP.
