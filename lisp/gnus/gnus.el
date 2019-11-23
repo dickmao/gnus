@@ -3472,11 +3472,11 @@ server is native)."
   "Return the prefix of the current group name."
   (< 0 (length (gnus-group-real-prefix group))))
 
-(defun gnus-summary-buffer-name (group)
+(defun gnus-summary-buffer-name (group &optional canonical)
   "Return the summary buffer name of GROUP."
   (let ((name (concat "*Summary " group "*"))
         (main-thread-p (eq (current-thread) (car (all-threads)))))
-    (if main-thread-p
+    (if (or canonical main-thread-p)
         name
       (format " %s %s" (thread-name (current-thread)) name))))
 
