@@ -1495,9 +1495,11 @@ if it is a string, only list groups matching REGEXP."
 	     (gnus-group-get-new-news 0))))
   :type 'boolean)
 
-(defun gnus-group-insert-group-line (gnus-tmp-group gnus-tmp-level
-						    gnus-tmp-marked number
-						    gnus-tmp-method)
+(defun gnus-group-insert-group-line (gnus-tmp-group
+                                     gnus-tmp-level
+                                     gnus-tmp-marked
+                                     number
+                                     gnus-tmp-method)
   "Insert a group line in the group buffer."
   (let* ((gnus-tmp-method
 	  (gnus-server-get-method gnus-tmp-group gnus-tmp-method))

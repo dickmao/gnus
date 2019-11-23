@@ -1402,7 +1402,7 @@ the normal Gnus MIME machinery."
 (defvar gnus-current-crosspost-group nil)
 (defvar-local gnus-newsgroup-display nil)
 
-(defvar-local gnus-newsgroup-dependencies nil
+(defvar-local gnus-newsgroup-dependencies (gnus-make-hashtable)
   "A hash table holding dependencies between messages.")
 ;; Dependencies are held in a tree structure: a list with the root
 ;; message as car, and each immediate child a sublist (perhaps
@@ -3843,147 +3843,147 @@ lines for articles.  The rest of the function is mostly concerned
 with limiting and positioning and windowing and other visual
 effects."
   (gnus-message 7 "Retrieving newsgroup: %s..." group)
-
-  (if-let ((prepare-p (gnus-summary-setup-buffer group)))
-      (with-current-buffer (gnus-summary-buffer-name group)
-        (cl-case (gnus-select-newsgroup group show-all select-articles)
-         ('quit
-          ;; The user did a `C-g' while prompting for number of articles,
-          ;; so we exit this group.
-          (and (derived-mode-p 'gnus-summary-mode)
-               (not (equal (current-buffer) kill-buffer))
-               (kill-buffer (current-buffer)))
+  (unwind-protect
+      (if-let ((prepare-p (gnus-summary-setup-buffer group)))
+          (with-current-buffer (gnus-summary-buffer-name group)
+            (cl-case (gnus-select-newsgroup group show-all select-articles)
+              ('quit
+               ;; The user did a `C-g' while prompting for number of articles,
+               ;; so we exit this group.
+               (and (derived-mode-p 'gnus-summary-mode)
+                    (not (equal (current-buffer) kill-buffer))
+                    (kill-buffer (current-buffer)))
+               (when kill-buffer
+                 (gnus-kill-or-deaden-summary kill-buffer))
+               (if-let ((quit-config (gnus-group-quit-config group)))
+                   (gnus-handle-ephemeral-exit quit-config)
+                 (set-buffer gnus-group-buffer)
+                 (gnus-group-jump-to-group group)
+                 (gnus-configure-windows 'group 'force))
+               ;; Finally signal the quit.
+               (signal 'quit nil))
+              (nil
+               (when (and (derived-mode-p 'gnus-summary-mode)
+                          (not (equal (current-buffer) kill-buffer)))
+                 (kill-buffer (current-buffer))
+                 (if-let ((quit-config (gnus-group-quit-config group)))
+                     (gnus-handle-ephemeral-exit quit-config)
+                   (gnus-summary-update-info) ;; marks might need to be removed
+                   (set-buffer gnus-group-buffer)
+                   (gnus-group-jump-to-group group)
+                   (gnus-group-next-unread-group 1)))
+               (if (null (gnus-list-of-unread-articles group))
+                   (gnus-message 3 "Group %s contains no messages" group)
+                 (gnus-message 3 "Can't select group"))
+               nil)
+              (otherwise
+               ;; The group was successfully selected.
+               (when (boundp 'gnus-pick-line-number)
+                 (setq gnus-pick-line-number 0))
+               (when (boundp 'spam-install-hooks)
+                 (spam-initialize))
+               ;; Save the active value in effect when the group was entered.
+               (setq gnus-newsgroup-active
+                     (copy-tree
+                      (gnus-active gnus-newsgroup-name)))
+               (setq gnus-newsgroup-highest (cdr gnus-newsgroup-active))
+               ;; You can change the summary buffer in some way with this hook.
+               (gnus-run-hooks 'gnus-select-group-hook)
+               (when (memq 'summary (gnus-update-format-specifications
+                                     nil 'summary 'summary-mode 'summary-dummy))
+                 ;; The format specification for the summary line was updated,
+                 ;; so we need to update the mark positions as well.
+                 (gnus-update-summary-mark-positions))
+               ;; Do score processing.
+               (when gnus-use-scoring
+                 (gnus-possibly-score-headers))
+               ;; Check whether to fill in the gaps in the threads.
+               (when gnus-build-sparse-threads
+                 (gnus-build-sparse-threads))
+               ;; Find the initial limit.
+               (if show-all
+                   (let ((gnus-newsgroup-dormant nil))
+                     (gnus-summary-initial-limit show-all))
+                 (gnus-summary-initial-limit show-all))
+               ;; Generate the summary buffer.
+               (unless no-display
+                 (gnus-summary-prepare))
+               (when gnus-use-trees
+                 (gnus-tree-open)            ;Autoloaded from gnus-salt.
+                 (declare-function gnus-tree-highlight-article "gnus-salt" (article face))
+                 (setq gnus-summary-highlight-line-function
+                       #'gnus-tree-highlight-article))
+               ;; If the summary buffer is empty, but there are some low-scored
+               ;; articles or some excluded dormants, we include these in the
+               ;; buffer.
+               (when (and (zerop (buffer-size))
+                          (not no-display))
+                 (cond (gnus-newsgroup-dormant
+                        (gnus-summary-limit-include-dormant))
+                       ((and gnus-newsgroup-scored show-all)
+                        (gnus-summary-limit-include-expunged t))))
+               ;; Function `gnus-apply-kill-file' must be called in this hook.
+               (gnus-run-hooks 'gnus-apply-kill-hook)
+               (if (and (zerop (buffer-size))
+                        (not no-display))
+                   (progn
+                     ;; This newsgroup is empty.
+                     (gnus-summary-catchup-and-exit nil t)
+                     (gnus-message 6 "No unread news")
+                     (when kill-buffer
+                       (gnus-kill-or-deaden-summary kill-buffer))
+                     ;; Return nil from this function.
+                     nil)
+                 ;; Hide conversation thread subtrees.  We cannot do this in
+                 ;; gnus-summary-prepare-hook since kill processing may not
+                 ;; work with hidden articles.
+                 (gnus-summary-maybe-hide-threads)
+                 (when kill-buffer
+                   (gnus-kill-or-deaden-summary kill-buffer))
+                 (gnus-summary-auto-select-subject)
+                 ;; Don't mark any articles as selected if we haven't done that.
+                 (when no-article
+                   (setq overlay-arrow-position nil))
+                 ;; Show first unread article if requested.
+                 (if (and (not no-article)
+                          (not no-display)
+                          gnus-newsgroup-unreads
+                          gnus-auto-select-first)
+                     (progn
+                       (let ((art (gnus-summary-article-number)))
+                         (when (and art
+                                    gnus-plugged
+                                    (not (memq art gnus-newsgroup-undownloaded))
+                                    (not (memq art gnus-newsgroup-downloadable)))
+                           (gnus-summary-goto-article art))))
+                   ;; Don't select any articles.
+                   (gnus-summary-position-point)
+                   (gnus-set-mode-line 'summary)
+                   (gnus-configure-windows 'summary 'force))
+                 (when (and gnus-auto-center-group
+                            (get-buffer-window gnus-group-buffer t))
+                   ;; Gotta use windows, because recenter does weird stuff if
+                   ;; the current buffer ain't the displayed window.
+                   (let ((owin (selected-window)))
+                     (select-window (get-buffer-window gnus-group-buffer t))
+                     (when (gnus-group-goto-group group)
+                       (recenter))
+                     (select-window owin)))
+                 ;; Mark this buffer as "prepared".
+                 (setq gnus-newsgroup-prepared t)
+                 (gnus-run-hooks 'gnus-summary-prepared-hook)
+                 (unless (gnus-ephemeral-group-p group)
+                   (gnus-group-update-group group nil t))
+                 t))))
+        (with-current-buffer (gnus-summary-buffer-name group)
+          ;; Summary buffer already prepared, so we just select it.
           (when kill-buffer
             (gnus-kill-or-deaden-summary kill-buffer))
-          (if-let ((quit-config (gnus-group-quit-config group)))
-              (gnus-handle-ephemeral-exit quit-config)
-            (set-buffer gnus-group-buffer)
-            (gnus-group-jump-to-group group)
-            (gnus-configure-windows 'group 'force))
-          ;; Finally signal the quit.
-          (signal 'quit nil))
-         (nil
-          (when (and (derived-mode-p 'gnus-summary-mode)
-                     (not (equal (current-buffer) kill-buffer)))
-            (kill-buffer (current-buffer))
-            (if-let ((quit-config (gnus-group-quit-config group)))
-                (gnus-handle-ephemeral-exit quit-config)
-              (gnus-summary-update-info) ;; marks might need to be removed
-              (set-buffer gnus-group-buffer)
-              (gnus-group-jump-to-group group)
-              (gnus-group-next-unread-group 1)))
-          (if (null (gnus-list-of-unread-articles group))
-              (gnus-message 3 "Group %s contains no messages" group)
-            (gnus-message 3 "Can't select group"))
-          nil)
-         (otherwise
-          ;; The group was successfully selected.
-          (when (boundp 'gnus-pick-line-number)
-            (setq gnus-pick-line-number 0))
-          (when (boundp 'spam-install-hooks)
-            (spam-initialize))
-          ;; Save the active value in effect when the group was entered.
-          (setq gnus-newsgroup-active
-                (copy-tree
-                 (gnus-active gnus-newsgroup-name)))
-          (setq gnus-newsgroup-highest (cdr gnus-newsgroup-active))
-          ;; You can change the summary buffer in some way with this hook.
-          (gnus-run-hooks 'gnus-select-group-hook)
-          (when (memq 'summary (gnus-update-format-specifications
-                                nil 'summary 'summary-mode 'summary-dummy))
-            ;; The format specification for the summary line was updated,
-            ;; so we need to update the mark positions as well.
-            (gnus-update-summary-mark-positions))
-          ;; Do score processing.
-          (when gnus-use-scoring
-            (gnus-possibly-score-headers))
-          ;; Check whether to fill in the gaps in the threads.
-          (when gnus-build-sparse-threads
-            (gnus-build-sparse-threads))
-          ;; Find the initial limit.
-          (if show-all
-              (let ((gnus-newsgroup-dormant nil))
-                (gnus-summary-initial-limit show-all))
-            (gnus-summary-initial-limit show-all))
-          ;; Generate the summary buffer.
-          (unless no-display
-            (gnus-summary-prepare))
-          (when gnus-use-trees
-            (gnus-tree-open)            ;Autoloaded from gnus-salt.
-            (declare-function gnus-tree-highlight-article "gnus-salt" (article face))
-            (setq gnus-summary-highlight-line-function
-                  #'gnus-tree-highlight-article))
-          ;; If the summary buffer is empty, but there are some low-scored
-          ;; articles or some excluded dormants, we include these in the
-          ;; buffer.
-          (when (and (zerop (buffer-size))
-                     (not no-display))
-            (cond (gnus-newsgroup-dormant
-                   (gnus-summary-limit-include-dormant))
-                  ((and gnus-newsgroup-scored show-all)
-                   (gnus-summary-limit-include-expunged t))))
-          ;; Function `gnus-apply-kill-file' must be called in this hook.
-          (gnus-run-hooks 'gnus-apply-kill-hook)
-          (if (and (zerop (buffer-size))
-                   (not no-display))
-              (progn
-                ;; This newsgroup is empty.
-                (gnus-summary-catchup-and-exit nil t)
-                (gnus-message 6 "No unread news")
-                (when kill-buffer
-                  (gnus-kill-or-deaden-summary kill-buffer))
-                ;; Return nil from this function.
-                nil)
-            ;; Hide conversation thread subtrees.  We cannot do this in
-            ;; gnus-summary-prepare-hook since kill processing may not
-            ;; work with hidden articles.
-            (gnus-summary-maybe-hide-threads)
-            (gnus-configure-windows 'summary)
-            (when kill-buffer
-              (gnus-kill-or-deaden-summary kill-buffer))
-            (gnus-summary-auto-select-subject)
-            ;; Don't mark any articles as selected if we haven't done that.
-            (when no-article
-              (setq overlay-arrow-position nil))
-            ;; Show first unread article if requested.
-            (if (and (not no-article)
-                     (not no-display)
-                     gnus-newsgroup-unreads
-                     gnus-auto-select-first)
-                (progn
-                  (let ((art (gnus-summary-article-number)))
-                    (when (and art
-                               gnus-plugged
-                               (not (memq art gnus-newsgroup-undownloaded))
-                               (not (memq art gnus-newsgroup-downloadable)))
-                      (gnus-summary-goto-article art))))
-              ;; Don't select any articles.
-              (gnus-summary-position-point)
-              (gnus-configure-windows 'summary 'force)
-              (gnus-set-mode-line 'summary))
-            (when (and gnus-auto-center-group
-                       (get-buffer-window gnus-group-buffer t))
-              ;; Gotta use windows, because recenter does weird stuff if
-              ;; the current buffer ain't the displayed window.
-              (let ((owin (selected-window)))
-                (select-window (get-buffer-window gnus-group-buffer t))
-                (when (gnus-group-goto-group group)
-                  (recenter))
-                (select-window owin)))
-            ;; Mark this buffer as "prepared".
-            (setq gnus-newsgroup-prepared t)
-            (gnus-run-hooks 'gnus-summary-prepared-hook)
-            (unless (gnus-ephemeral-group-p group)
-              (gnus-group-update-group group nil t))
-            t))))
-    (with-current-buffer (gnus-summary-buffer-name group)
-      ;; Summary buffer already prepared, so we just select it.
-      (when kill-buffer
-        (gnus-kill-or-deaden-summary kill-buffer))
-      (gnus-configure-windows 'summary 'force)
-      (gnus-set-mode-line 'summary)
-      (gnus-summary-position-point)
-      t)))
+          (gnus-set-mode-line 'summary)
+          (gnus-summary-position-point)
+          (gnus-configure-windows 'summary 'force)
+          t))
+    (gnus-message 7 "Retrieving newsgroup: %s...done" group)))
 
 (defun gnus-summary-auto-select-subject ()
   "Select the subject line on initial group entry."
@@ -4524,7 +4524,7 @@ the id of the parent article (if any)."
 
 (defmacro gnus-summary-assume-in-summary (&rest body)
   "If we are not in an summary buffer, go there, and execute BODY.  Restore."
-  (declare (indent 0))
+  (declare (indent 0) (debug t))
   `(save-current-buffer
      (unless (derived-mode-p 'gnus-summary-mode)
        (set-buffer gnus-summary-buffer))

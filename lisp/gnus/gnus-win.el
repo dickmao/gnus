@@ -30,6 +30,8 @@
 (require 'gnus-util)
 (require 'seq)
 
+(declare-function gnus-group-name-at-point "gnus-group")
+
 (defgroup gnus-windows nil
   "Window configuration."
   :group 'gnus)
@@ -244,7 +246,26 @@ See the Gnus manual for an explanation of the syntax used.")
 	 nil)))
 
 (defun gnus-configure-frame (split &optional window)
-  "Split WINDOW according to SPLIT."
+  "TODO: rewrite `gnus-win.el' to be less opinionated.
+
+It's not ideal to maintain hardcoded maps like `gnus-window-to-buffer'
+and `gnus-buffer-configuration'."
+  (gnus-configure--frame
+   (progn
+     (when-let* ((what (cdr (assq (car split) gnus-window-to-buffer)))
+                 (buf (gnus-window-to-buffer-helper what))
+                 (dead-buf (and (bufferp buf) (not (buffer-live-p buf)))))
+       (if-let ((group (gnus-group-name-at-point)))
+           (setcar split
+                   (gnus-summary-buffer-name group))
+         (error "No group at point")))
+     split)
+   window))
+
+(defun gnus-configure--frame (split &optional window)
+  "Split WINDOW according to SPLIT.
+
+Formerly `gnus-configure-frame'.  Wasn't thread-safe."
   (let* ((current-window (or (get-buffer-window (current-buffer))
                              (selected-window)))
          (window (or window current-window)))
@@ -270,7 +291,7 @@ See the Gnus manual for an explanation of the syntax used.")
        ;; This is a buffer to be selected.
        ((not (memq type '(frame horizontal vertical)))
 	(let ((buffer (cond ((stringp type) type)
-			    (t (cdr (assq type gnus-window-to-buffer))))))
+                            (t (cdr (assq type gnus-window-to-buffer))))))
 	  (unless buffer
 	    (error "Invalid buffer type: %s" type))
 	  (let ((buf (gnus-get-buffer-create
