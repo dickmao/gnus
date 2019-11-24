@@ -5496,9 +5496,6 @@ or a straight list of headers."
   "Select newsgroup GROUP.
 If READ-ALL is non-nil, all articles in the group are selected.
 If SELECT-ARTICLES, only select those articles from GROUP."
-
-  (when (eq (current-thread) (car (all-threads)))
-    (message "what is gnu-summary-buffer 1? %s (%s)" gnus-summary-buffer (current-buffer)))
   (let* ((entry (gnus-group-entry group))
 	 ;;!!! Dirty hack; should be removed.
 	 (gnus-summary-ignore-duplicates
