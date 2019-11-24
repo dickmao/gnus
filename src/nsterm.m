@@ -3435,19 +3435,22 @@ ns_draw_text_decoration (struct glyph_string *s, struct face *face,
               unsigned long descent = s->y + s->height - s->ybase;
               unsigned long minimum_offset;
               BOOL underline_at_descent_line, use_underline_position_properties;
-              Lisp_Object val = buffer_local_value (Qunderline_minimum_offset,
-                                                    s->w->contents);
-              if (FIXNUMP (val))
-                minimum_offset = XFIXNAT (val);
-              else
-                minimum_offset = 1;
-              val = buffer_local_value (Qx_underline_at_descent_line,
-                                        s->w->contents);
-              underline_at_descent_line = !(NILP (val) || EQ (val, Qunbound));
-              val = buffer_local_value (Qx_use_underline_position_properties,
-                                        s->w->contents);
-              use_underline_position_properties =
-		!(NILP (val) || EQ (val, Qunbound));
+	      Lisp_Object val = (WINDOW_BUFFER_LOCAL_VALUE
+				 (Qunderline_minimum_offset, s->w));
+
+	      if (FIXNUMP (val))
+		minimum_offset = XFIXNAT (val);
+	      else
+		minimum_offset = 1;
+
+	      val = (WINDOW_BUFFER_LOCAL_VALUE
+		     (Qx_underline_at_descent_line, s->w));
+	      underline_at_descent_line = !(NILP (val) || EQ (val, Qunbound));
+
+	      val = (WINDOW_BUFFER_LOCAL_VALUE
+		     (Qx_use_underline_position_properties, s->w));
+	      use_underline_position_properties
+		= !(NILP (val) || EQ (val, Qunbound));
 
               /* Use underline thickness of font, defaulting to 1.  */
               thickness = (font && font->underline_thickness > 0)
@@ -4401,14 +4404,22 @@ ns_check_menu_open (NSMenu *menu)
           NSEvent *theEvent = [NSApp currentEvent];
           struct frame *emacsframe = SELECTED_FRAME ();
 
-          [menu cancelTracking];
-          menu_will_open_state = MENU_PENDING;
-          emacs_event->kind = MENU_BAR_ACTIVATE_EVENT;
-          EV_TRAILER (theEvent);
+          /* On macOS, the following can cause an event loop when the
+             Spotlight for Help search field is populated.  Avoid this by
+             not postponing mouse drag and non-user-generated mouse down
+             events (Bug#31371).  */
+          if (([theEvent type] == NSEventTypeLeftMouseDown)
+              && [theEvent eventNumber])
+            {
+              [menu cancelTracking];
+              menu_will_open_state = MENU_PENDING;
+              emacs_event->kind = MENU_BAR_ACTIVATE_EVENT;
+              EV_TRAILER (theEvent);
 
-          CGEventRef ourEvent = CGEventCreate (NULL);
-          menu_mouse_point = CGEventGetLocation (ourEvent);
-          CFRelease (ourEvent);
+              CGEventRef ourEvent = CGEventCreate (NULL);
+              menu_mouse_point = CGEventGetLocation (ourEvent);
+              CFRelease (ourEvent);
+            }
         }
       else if (menu_will_open_state == MENU_OPENING)
         {
@@ -6435,15 +6446,17 @@ not_in_argv (NSString *arg)
            (unsigned long)selRange.length,
            (unsigned long)selRange.location);
 
-  if (workingText != nil)
-    [self deleteWorkingText];
   if ([str length] == 0)
-    return;
+    {
+      [self deleteWorkingText];
+      return;
+    }
 
   if (!emacs_event)
     return;
 
   processingCompose = YES;
+  [workingText release];
   workingText = [str copy];
   ns_working_text = build_string ([workingText UTF8String]);
 

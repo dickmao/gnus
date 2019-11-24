@@ -1038,6 +1038,7 @@ of the current buffer."
 			 (format
 			  "File %s is under version control.  Check it out? "
 			  (ediff-abbreviate-file-name file))))
+		   (setq this-command 'ediff-toggle-read-only) ; bug#38219
 		   ;; if we checked the file out, we should also change the
 		   ;; original state of buffer-read-only to nil.  If we don't
 		   ;; do this, the mode line will show %%, since the file was
@@ -1274,21 +1275,21 @@ which see."
   (cond ((eq ediff-window-setup-function #'ediff-setup-windows-multiframe)
 	 (setq ediff-multiframe nil)
 	 (setq window-setup-func #'ediff-setup-windows-plain)
-         (message "ediff is now in 'plain' mode"))
+         (message "ediff is now in `plain' mode"))
 	((eq ediff-window-setup-function #'ediff-setup-windows-plain)
 	 (if (and (ediff-buffer-live-p ediff-control-buffer)
 		  (window-live-p ediff-control-window))
 	     (set-window-dedicated-p ediff-control-window nil))
 	 (setq ediff-multiframe t)
 	 (setq window-setup-func #'ediff-setup-windows-multiframe)
-         (message "ediff is now in 'multiframe' mode"))
+         (message "ediff is now in `multiframe' mode"))
 	(t
 	 (if (and (ediff-buffer-live-p ediff-control-buffer)
 		  (window-live-p ediff-control-window))
 	     (set-window-dedicated-p ediff-control-window nil))
 	 (setq ediff-multiframe t)
 	 (setq window-setup-func #'ediff-setup-windows-multiframe))
-         (message "ediff is now in 'multiframe' mode"))
+         (message "ediff is now in `multiframe' mode"))
 
   ;; change default
   (setq-default ediff-window-setup-function window-setup-func)
@@ -2379,6 +2380,7 @@ temporarily reverses the meaning of this variable."
 			      " & show containing session group" "")))
 	(progn
 	  (message "")
+	  (setq this-command 'ediff-quit) ; bug#38219
 	  (set-buffer ctl-buf)
 	  (ediff-really-quit reverse-default-keep-variants))
       (select-frame ctl-frm)

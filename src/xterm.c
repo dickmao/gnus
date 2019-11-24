@@ -3847,20 +3847,21 @@ x_draw_glyph_string (struct glyph_string *s)
 		  unsigned long minimum_offset;
 		  bool underline_at_descent_line;
 		  bool use_underline_position_properties;
-		  Lisp_Object val
-		    = buffer_local_value (Qunderline_minimum_offset,
-					  s->w->contents);
+		  Lisp_Object val = (WINDOW_BUFFER_LOCAL_VALUE
+				     (Qunderline_minimum_offset, s->w));
+
 		  if (FIXNUMP (val))
 		    minimum_offset = max (0, XFIXNUM (val));
 		  else
 		    minimum_offset = 1;
-		  val = buffer_local_value (Qx_underline_at_descent_line,
-					    s->w->contents);
+
+		  val = (WINDOW_BUFFER_LOCAL_VALUE
+			 (Qx_underline_at_descent_line, s->w));
 		  underline_at_descent_line
 		    = !(NILP (val) || EQ (val, Qunbound));
-		  val
-		    = buffer_local_value (Qx_use_underline_position_properties,
-					  s->w->contents);
+
+		  val = (WINDOW_BUFFER_LOCAL_VALUE
+			 (Qx_use_underline_position_properties, s->w));
 		  use_underline_position_properties
 		    = !(NILP (val) || EQ (val, Qunbound));
 
@@ -9031,7 +9032,8 @@ handle_one_xevent (struct x_display_info *dpyinfo,
 		  unblock_input ();
 		}
 
-	      if (old_left != f->left_pos || old_top != f->top_pos)
+	      if (!FRAME_TOOLTIP_P (f)
+		  && (old_left != f->left_pos || old_top != f->top_pos))
 		{
 		  inev.ie.kind = MOVE_FRAME_EVENT;
 		  XSETFRAME (inev.ie.frame_or_window, f);
@@ -13636,7 +13638,7 @@ baseline level.  The default value is nil.  */);
   DEFVAR_BOOL ("x-mouse-click-focus-ignore-position",
 	       x_mouse_click_focus_ignore_position,
     doc: /* Non-nil means that a mouse click to focus a frame does not move point.
-This variable is only used when the window manager requires that you
+This variable is used only when the window manager requires that you
 click on a frame to select it (give it focus).  In that case, a value
 of nil, means that the selected window and cursor position changes to
 reflect the mouse click position, while a non-nil value means that the

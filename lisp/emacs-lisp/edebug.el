@@ -3276,7 +3276,9 @@ With prefix argument, make it a temporary breakpoint."
   (interactive "P")
   ;; If the form hasn't been instrumented yet, do it now.
   (when (and (not edebug-active)
-	     (let ((data (get (edebug-form-data-symbol) 'edebug)))
+	     (let ((data (get (edebug--form-data-name
+                               (edebug-get-form-data-entry (point)))
+                              'edebug)))
 	       (or (null data) (markerp data))))
     (edebug-defun))
   (edebug-modify-breakpoint t nil arg))
@@ -4569,23 +4571,54 @@ With prefix argument, make it a temporary breakpoint."
   ;; Continue standard unloading.
   nil)
 
-(defun edebug-remove-instrumentation ()
-  "Remove Edebug instrumentation from all functions."
-  (interactive)
-  (let ((functions nil))
-    (mapatoms
-     (lambda (symbol)
-       (when (and (functionp symbol)
-                  (get symbol 'edebug))
-         (let ((unwrapped (edebug-unwrap* (symbol-function symbol))))
-           (unless (equal unwrapped (symbol-function symbol))
-             (push symbol functions)
-             (setf (symbol-function symbol) unwrapped)))))
-     obarray)
-    (if (not functions)
-        (message "Found no functions to remove instrumentation from")
-      (message "Remove edebug instrumentation from %s"
-               (mapconcat #'symbol-name functions ", ")))))
+(defun edebug--unwrap*-symbol-function (symbol)
+  ;; Try to unwrap SYMBOL's `symbol-function'.  The result is suitable
+  ;; to be fbound back to SYMBOL with `defalias'.  When no unwrapping
+  ;; could be done return nil.
+  (pcase (symbol-function symbol)
+    ((or (and `(macro . ,f) (let was-macro t))
+         (and  f            (let was-macro nil)))
+     ;; `defalias' takes care of advises so we must strip them
+     (let* ((orig-f (advice--cd*r f))
+            (unwrapped (edebug-unwrap* orig-f)))
+       (cond
+        ((equal unwrapped orig-f) nil)
+        (was-macro               `(macro . ,unwrapped))
+        (t                       unwrapped))))))
+
+(defun edebug-remove-instrumentation (functions)
+  "Remove Edebug instrumentation from FUNCTIONS.
+Interactively, the user is prompted for the function to remove
+instrumentation for, defaulting to all functions."
+  (interactive
+   (list
+    (let ((functions nil))
+      (mapatoms
+       (lambda (symbol)
+         (when (and (get symbol 'edebug)
+                    (or (functionp symbol)
+                        (macrop symbol))
+                    (edebug--unwrap*-symbol-function
+                     symbol))
+           (push symbol functions)))
+       obarray)
+      (unless functions
+        (error "Found no functions to remove instrumentation from"))
+      (let ((name
+             (completing-read
+              "Remove instrumentation from (default all functions): "
+              functions)))
+        (if (and name
+                 (not (equal name "")))
+            (list (intern name))
+          functions)))))
+  ;; Remove instrumentation.
+  (dolist (symbol functions)
+    (when-let ((unwrapped
+                (edebug--unwrap*-symbol-function symbol)))
+      (defalias symbol unwrapped)))
+  (message "Removed edebug instrumentation from %s"
+           (mapconcat #'symbol-name functions ", ")))
 
 (provide 'edebug)
 ;;; edebug.el ends here

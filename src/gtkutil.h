@@ -203,5 +203,6 @@ extern void xg_initialize (void);
 extern bool xg_ignore_gtk_scrollbar;
 
 extern bool xg_gtk_initialized;
+
 #endif /* USE_GTK */
 #endif /* GTKUTIL_H */

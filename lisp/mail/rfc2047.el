@@ -184,6 +184,7 @@ This is either `base64' or `quoted-printable'."
       (re-search-forward ":[ \t\n]*" nil t)
       (buffer-substring-no-properties (point) (point-max)))))
 
+(make-obsolete 'rfc2047-quote-special-characters-in-quoted-strings nil "27.1")
 (defun rfc2047-quote-special-characters-in-quoted-strings (&optional
 							   encodable-regexp)
   "Quote special characters with `\\'s in quoted strings.
@@ -269,18 +270,15 @@ Should be called narrowed to the head of the message."
 		(setq alist nil
 		      method (cdr elem))))
 	    (if (not (rfc2047-encodable-p))
-		(prog2
-		    (when (eq method 'address-mime)
-		      (rfc2047-quote-special-characters-in-quoted-strings))
-		    (if (and (eq (mm-body-7-or-8) '8bit)
-			     (mm-multibyte-p)
-			     (mm-coding-system-p
-			      (car message-posting-charset)))
-			;; 8 bit must be decoded.
-			(encode-coding-region
-			 (point-min) (point-max)
-			 (mm-charset-to-coding-system
-			  (car message-posting-charset)))))
+		(if (and (eq (mm-body-7-or-8) '8bit)
+			 (mm-multibyte-p)
+			 (mm-coding-system-p
+			  (car message-posting-charset)))
+		    ;; 8 bit must be decoded.
+		    (encode-coding-region
+		     (point-min) (point-max)
+		     (mm-charset-to-coding-system
+		      (car message-posting-charset))))
 	      ;; We found something that may perhaps be encoded.
 	      (re-search-forward "^[^:]+: *" nil t)
 	      (cond
@@ -397,8 +395,6 @@ Dynamically bind `rfc2047-encoding-type' to change that."
 	      (if (> (point) start)
 		  (rfc2047-encode start (point))
 		(goto-char end))))
-	;; `address-mime' case -- take care of quoted words, comments.
-	(rfc2047-quote-special-characters-in-quoted-strings encodable-regexp)
 	(with-syntax-table rfc2047-syntax-table
 	  (goto-char (point-min))
 	  (condition-case err		; in case of unbalanced quotes

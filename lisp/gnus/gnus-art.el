@@ -3033,6 +3033,7 @@ images if any to the browser, and deletes them when exiting the group
       (gnus-summary-show-article)
     (let ((gnus-visible-headers (or (get 'gnus-visible-headers 'standard-value)
 				    gnus-visible-headers))
+	  (gnus-mime-display-attachment-buttons-in-header nil)
 	  ;; As we insert a <hr>, there's no need for the body boundary.
 	  (gnus-treat-body-boundary nil))
       (gnus-summary-show-article)))
@@ -5843,6 +5844,7 @@ all parts."
      b e
      'keymap gnus-mime-button-map
      'face gnus-article-button-face
+     'follow-link t
      'help-echo
      "mouse-2: toggle the MIME part; down-mouse-3: more options")))
 
@@ -6126,6 +6128,7 @@ If nil, don't show those extra buttons."
 	     keymap ,gnus-mime-button-map
 	     mouse-face ,gnus-article-mouse-face
 	     face ,gnus-article-button-face
+	     follow-link t
 	     gnus-part ,id
 	     button t
 	     article-type multipart
@@ -6149,6 +6152,7 @@ If nil, don't show those extra buttons."
 	       keymap ,gnus-mime-button-map
 	       mouse-face ,gnus-article-mouse-face
 	       face ,gnus-article-button-face
+	       follow-link t
 	       gnus-part ,id
 	       button t
 	       gnus-data ,handle
@@ -6653,14 +6657,17 @@ not have a face in `gnus-article-boring-faces'."
 	   "An" "Ap" [?A (meta return)] [?A delete]))
 	(nosave-in-article
 	 '("AS" "\C-d"))
-	keys new-sum-point)
+	keys new-sum-point gnus-pick-mode func)
     (with-current-buffer gnus-article-current-summary
-      (let (gnus-pick-mode)
-	(setq unread-command-events (nconc unread-command-events
-					   (list (or key last-command-event)))
-	      keys (read-key-sequence nil t))))
+      (setq unread-command-events (nconc unread-command-events
+					 (list (or key last-command-event)))
+	    keys (read-key-sequence nil t)
+	    func (key-binding keys t)))
 
     (message "")
+
+    (when (eq func 'undefined)
+      (error "%s is undefined" keys))
 
     (cond
      ((eq (aref keys (1- (length keys))) ?\C-h)
@@ -6668,28 +6675,23 @@ not have a face in `gnus-article-boring-faces'."
      ((or (member keys nosaves)
 	  (member keys nosave-but-article)
 	  (member keys nosave-in-article))
-      (let (func)
-	(with-current-buffer gnus-article-current-summary
-	  ;; We disable the pick minor mode commands.
-	  (let (gnus-pick-mode)
-	    (setq func (key-binding keys t))))
-	(if (or (not func)
-		(numberp func))
-	    (ding)
-	  (unless (member keys nosave-in-article)
-	    (set-buffer gnus-article-current-summary))
-	  (when (and (symbolp func)
-		     (get func 'disabled))
-	    (error "Function %s disabled" func))
-	  (call-interactively func)
-	  (setq new-sum-point (point)))
-	(when (member keys nosave-but-article)
-	  (pop-to-buffer gnus-article-buffer))))
+      (if (or (not func)
+	      (numberp func))
+	  (ding)
+	(unless (member keys nosave-in-article)
+	  (set-buffer gnus-article-current-summary))
+	(when (and (symbolp func)
+		   (get func 'disabled))
+	  (error "Function %s disabled" func))
+	(call-interactively func)
+	(setq new-sum-point (point)))
+      (when (member keys nosave-but-article)
+	(pop-to-buffer gnus-article-buffer)))
      (t
       ;; These commands should restore window configuration.
       (let ((obuf (current-buffer))
 	    (owin (current-window-configuration))
-	    win func in-buffer selected new-sum-start new-sum-hscroll err)
+	    win in-buffer selected new-sum-start new-sum-hscroll err)
 	(cond (not-restore-window
 	       (pop-to-buffer gnus-article-current-summary)
 	       (setq win (selected-window)))
@@ -6708,9 +6710,6 @@ not have a face in `gnus-article-boring-faces'."
 		 (select-frame-set-input-focus (window-frame win))
 		 (select-window win))))
 	(setq in-buffer (current-buffer))
-	;; We disable the pick minor mode commands.
-	(setq func (let (gnus-pick-mode)
-		     (key-binding keys t)))
 	(when (and (symbolp func)
 		   (get func 'disabled))
 	  (error "Function %s disabled" func))
@@ -8054,6 +8053,7 @@ url is put as the `gnus-button-url' overlay property on the button."
 		'button-data data
 		'action fun
 		'keymap gnus-url-button-map
+		'follow-link t
 		'category t
 		'button t)
 	  (and data (list 'gnus-data data))))
@@ -8376,6 +8376,7 @@ url is put as the `gnus-button-url' overlay property on the button."
      gnus-prev-page-line-format nil
      `(keymap ,gnus-prev-page-map
 	      gnus-prev t
+	      follow-link t
 	      gnus-callback gnus-article-button-prev-page
 	      article-type annotation))
     (setq e (if (bolp)
@@ -8407,6 +8408,7 @@ url is put as the `gnus-button-url' overlay property on the button."
     (gnus-eval-format gnus-next-page-line-format nil
 		      `(keymap ,gnus-next-page-map
                                gnus-next t
+			       follow-link t
                                gnus-callback gnus-article-button-next-page
                                article-type annotation))
     (setq e (if (bolp)
@@ -8793,11 +8795,12 @@ For example:
      gnus-mime-security-button-line-format
      gnus-mime-security-button-line-format-alist
      `(keymap ,gnus-mime-security-button-map
-	 gnus-callback gnus-mime-security-press-button
-	 gnus-line-format ,gnus-mime-security-button-line-format
-	 gnus-mime-details ,gnus-mime-security-button-pressed
-	 article-type annotation
-	 gnus-data ,handle))
+	      gnus-callback gnus-mime-security-press-button
+	      gnus-line-format ,gnus-mime-security-button-line-format
+	      gnus-mime-details ,gnus-mime-security-button-pressed
+	      article-type annotation
+	      follow-link t
+	      gnus-data ,handle))
     (setq e (if (bolp)
 		;; Exclude a newline.
 		(1- (point))

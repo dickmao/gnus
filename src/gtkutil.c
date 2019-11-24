@@ -2228,6 +2228,21 @@ xg_get_file_name (struct frame *f,
 
 static char *x_last_font_name;
 
+#ifdef HAVE_GTK3
+static gboolean
+xg_font_filter (const PangoFontFamily *family,
+                const PangoFontFace *face,
+                gpointer data)
+{
+  const char *name = pango_font_family_get_name ((PangoFontFamily *)family);
+  ptrdiff_t namelen = strlen (name);
+
+  if (font_is_ignored (name, namelen))
+    return FALSE;
+  return TRUE;
+}
+#endif
+
 /* Pop up a GTK font selector and return the name of the font the user
    selects, as a C string.  The returned font name follows GTK's own
    format:
@@ -2247,6 +2262,9 @@ xg_get_font (struct frame *f, const char *default_name)
   w = gtk_font_chooser_dialog_new
     ("Pick a font", GTK_WINDOW (FRAME_GTK_OUTER_WIDGET (f)));
 
+#ifdef HAVE_GTK3
+  gtk_font_chooser_set_filter_func (GTK_FONT_CHOOSER (w), xg_font_filter, NULL, NULL);
+#endif
   if (default_name)
     {
       /* Convert fontconfig names to Gtk names, i.e. remove - before
@@ -2264,7 +2282,16 @@ xg_get_font (struct frame *f, const char *default_name)
     default_name = x_last_font_name;
 
   if (default_name)
-    gtk_font_chooser_set_font (GTK_FONT_CHOOSER (w), default_name);
+    {
+#ifdef HAVE_GTK3
+      PangoFontDescription *desc
+        = pango_font_description_from_string (default_name);
+      gtk_font_chooser_set_font_desc (GTK_FONT_CHOOSER (w), desc);
+      pango_font_description_free (desc);
+#else
+      gtk_font_chooser_set_font (GTK_FONT_CHOOSER (w), default_name);
+#endif
+    }
 
   gtk_widget_set_name (w, "emacs-fontdialog");
   done = xg_dialog_run (f, w);
@@ -2288,8 +2315,10 @@ xg_get_font (struct frame *f, const char *default_name)
 			QCweight, XG_WEIGHT_TO_SYMBOL (weight),
 			QCslant, XG_STYLE_TO_SYMBOL (style));
 
+          char *font_desc_str = pango_font_description_to_string (desc);
+          dupstring (&x_last_font_name, font_desc_str);
+          g_free (font_desc_str);
 	  pango_font_description_free (desc);
-	  dupstring (&x_last_font_name, family);
 	}
 
 #else /* Use old font selector, which just returns the font name.  */

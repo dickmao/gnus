@@ -1472,11 +1472,12 @@ harmonize_variable_watchers (Lisp_Object alias, Lisp_Object base_variable)
 
 DEFUN ("add-variable-watcher", Fadd_variable_watcher, Sadd_variable_watcher,
        2, 2, 0,
-       doc: /* Cause WATCH-FUNCTION to be called when SYMBOL is set.
+       doc: /* Cause WATCH-FUNCTION to be called when SYMBOL is about to be set.
 
 It will be called with 4 arguments: (SYMBOL NEWVAL OPERATION WHERE).
 SYMBOL is the variable being changed.
-NEWVAL is the value it will be changed to.
+NEWVAL is the value it will be changed to.  (The variable still has
+the old value when WATCH-FUNCTION is called.)
 OPERATION is a symbol representing the kind of change, one of: `set',
 `let', `unlet', `makunbound', and `defvaralias'.
 WHERE is a buffer if the buffer-local value of the variable is being
@@ -2352,80 +2353,6 @@ bool-vector.  IDX starts at 0.  */)
   return newelt;
 }
 
-/* GMP tests for this value and aborts (!) if it is exceeded.
-   This is as of GMP 6.1.2 (2016); perhaps future versions will differ.  */
-enum { GMP_NLIMBS_MAX = min (INT_MAX, ULONG_MAX / GMP_NUMB_BITS) };
-
-/* An upper bound on limb counts, needed to prevent libgmp and/or
-   Emacs from aborting or otherwise misbehaving.  This bound applies
-   to estimates of mpz_t sizes before the mpz_t objects are created,
-   as opposed to integer-width which operates on mpz_t values after
-   creation and before conversion to Lisp bignums.  */
-enum
-  {
-   NLIMBS_LIMIT = min (min (/* libgmp needs to store limb counts.  */
-			    GMP_NLIMBS_MAX,
-
-			    /* Size calculations need to work.  */
-			    min (PTRDIFF_MAX, SIZE_MAX) / sizeof (mp_limb_t)),
-
-		       /* Emacs puts bit counts into fixnums.  */
-		       MOST_POSITIVE_FIXNUM / GMP_NUMB_BITS)
-  };
-
-/* Like mpz_size, but tell the compiler the result is a nonnegative int.  */
-
-static int
-emacs_mpz_size (mpz_t const op)
-{
-  mp_size_t size = mpz_size (op);
-  eassume (0 <= size && size <= INT_MAX);
-  return size;
-}
-
-/* Wrappers to work around GMP limitations.  As of GMP 6.1.2 (2016),
-   the library code aborts when a number is too large.  These wrappers
-   avoid the problem for functions that can return numbers much larger
-   than their arguments.  For slowly-growing numbers, the integer
-   width checks in bignum.c should suffice.  */
-
-static void
-emacs_mpz_mul (mpz_t rop, mpz_t const op1, mpz_t const op2)
-{
-  if (NLIMBS_LIMIT - emacs_mpz_size (op1) < emacs_mpz_size (op2))
-    overflow_error ();
-  mpz_mul (rop, op1, op2);
-}
-
-static void
-emacs_mpz_mul_2exp (mpz_t rop, mpz_t const op1, EMACS_INT op2)
-{
-  /* Fudge factor derived from GMP 6.1.2, to avoid an abort in
-     mpz_mul_2exp (look for the '+ 1' in its source code).  */
-  enum { mul_2exp_extra_limbs = 1 };
-  enum { lim = min (NLIMBS_LIMIT, GMP_NLIMBS_MAX - mul_2exp_extra_limbs) };
-
-  EMACS_INT op2limbs = op2 / GMP_NUMB_BITS;
-  if (lim - emacs_mpz_size (op1) < op2limbs)
-    overflow_error ();
-  mpz_mul_2exp (rop, op1, op2);
-}
-
-static void
-emacs_mpz_pow_ui (mpz_t rop, mpz_t const base, unsigned long exp)
-{
-  /* This fudge factor is derived from GMP 6.1.2, to avoid an abort in
-     mpz_n_pow_ui (look for the '5' in its source code).  */
-  enum { pow_ui_extra_limbs = 5 };
-  enum { lim = min (NLIMBS_LIMIT, GMP_NLIMBS_MAX - pow_ui_extra_limbs) };
-
-  int nbase = emacs_mpz_size (base), n;
-  if (INT_MULTIPLY_WRAPV (nbase, exp, &n) || lim < n)
-    overflow_error ();
-  mpz_pow_ui (rop, base, exp);
-}
-
-
 /* Arithmetic functions */
 
 Lisp_Object
@@ -2943,8 +2870,8 @@ arith_driver (enum arithop code, ptrdiff_t nargs, Lisp_Object *args,
 
 	/* Set ACCUM to the next operation's result if it fits,
 	   else exit the loop.  */
-	bool overflow = false;
-	intmax_t a UNINIT;
+	bool overflow;
+	intmax_t a;
 	switch (code)
 	  {
 	  case Aadd : overflow = INT_ADD_WRAPV (accum, next, &a); break;
@@ -2953,10 +2880,11 @@ arith_driver (enum arithop code, ptrdiff_t nargs, Lisp_Object *args,
 	  case Adiv:
 	    if (next == 0)
 	      xsignal0 (Qarith_error);
-	    overflow = INT_DIVIDE_OVERFLOW (accum, next);
-	    if (!overflow)
-	      a = accum / next;
-	    break;
+	    /* This cannot overflow, as integer overflow can
+	       occur only if the dividend is INTMAX_MIN, but
+	       INTMAX_MIN < MOST_NEGATIVE_FIXNUM <= accum.  */
+	    accum /= next;
+	    continue;
 	  case Alogand: accum &= next; continue;
 	  case Alogior: accum |= next; continue;
 	  case Alogxor: accum ^= next; continue;
@@ -3290,14 +3218,29 @@ In this case, the sign bit is duplicated.  */)
 Lisp_Object
 expt_integer (Lisp_Object x, Lisp_Object y)
 {
+  /* Special cases for -1 <= x <= 1, which never overflow.  */
+  if (EQ (x, make_fixnum (1)))
+    return x;
+  if (EQ (x, make_fixnum (0)))
+    return EQ (x, y) ? make_fixnum (1) : x;
+  if (EQ (x, make_fixnum (-1)))
+    return ((FIXNUMP (y) ? XFIXNUM (y) & 1 : mpz_odd_p (*xbignum_val (y)))
+	    ? x : make_fixnum (1));
+
   unsigned long exp;
-  if (TYPE_RANGED_FIXNUMP (unsigned long, y))
-    exp = XFIXNUM (y);
-  else if (MOST_POSITIVE_FIXNUM < ULONG_MAX && BIGNUMP (y)
-	   && mpz_fits_ulong_p (*xbignum_val (y)))
-    exp = mpz_get_ui (*xbignum_val (y));
+  if (FIXNUMP (y))
+    {
+      if (ULONG_MAX < XFIXNUM (y))
+	overflow_error ();
+      exp = XFIXNUM (y);
+    }
   else
-    overflow_error ();
+    {
+      if (ULONG_MAX <= MOST_POSITIVE_FIXNUM
+	  || !mpz_fits_ulong_p (*xbignum_val (y)))
+	overflow_error ();
+      exp = mpz_get_ui (*xbignum_val (y));
+    }
 
   emacs_mpz_pow_ui (mpz[0], *bignum_integer (&mpz[0], x), exp);
   return make_integer_mpz ();
@@ -3920,9 +3863,9 @@ syms_of_data (void)
   PUT_ERROR (Qsingularity_error, Fcons (Qdomain_error, arith_tail),
 	     "Arithmetic singularity error");
 
-  PUT_ERROR (Qoverflow_error, Fcons (Qdomain_error, arith_tail),
+  PUT_ERROR (Qoverflow_error, Fcons (Qrange_error, arith_tail),
 	     "Arithmetic overflow error");
-  PUT_ERROR (Qunderflow_error, Fcons (Qdomain_error, arith_tail),
+  PUT_ERROR (Qunderflow_error, Fcons (Qrange_error, arith_tail),
 	     "Arithmetic underflow error");
 
   /* Types that type-of returns.  */

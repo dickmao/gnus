@@ -25,6 +25,10 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
+;;; Commentary:
+
+;; The file name handler implementation for ssh-alike remote connections.
+
 ;;; Code:
 
 (eval-when-compile (require 'cl-lib))
@@ -1249,6 +1253,7 @@ component is used as the target of the symlink."
 	    (tramp-do-file-attributes-with-ls v localname id-format))))))))
 
 (defun tramp-sh--quoting-style-options (vec)
+  "Quoting style options to be used for VEC."
   (or
    (tramp-get-ls-command-with
     vec "--quoting-style=literal --show-control-chars")
@@ -1713,6 +1718,10 @@ of."
   (directory &optional full match nosort id-format)
   "Like `directory-files-and-attributes' for Tramp files."
   (unless id-format (setq id-format 'integer))
+  (unless (file-exists-p directory)
+    (tramp-error
+     (tramp-dissect-file-name directory) tramp-file-missing
+     "No such file or directory" directory))
   (when (file-directory-p directory)
     (setq directory (expand-file-name directory))
     (let* ((temp
@@ -1923,6 +1932,10 @@ tramp-sh-handle-file-name-all-completions: internal error accessing `%s': `%s'"
   (let ((t1 (tramp-tramp-file-p dirname))
 	(t2 (tramp-tramp-file-p newname)))
     (with-parsed-tramp-file-name (if t1 dirname newname) nil
+      (unless (file-exists-p dirname)
+	(tramp-error
+	 v tramp-file-missing
+	 "Copying directory" "No such file or directory" dirname))
       (if (and (not copy-contents)
 	       (tramp-get-method-parameter v 'tramp-copy-recursive)
 	       ;; When DIRNAME and NEWNAME are remote, they must have
@@ -2011,6 +2024,9 @@ file names."
 			   (apply #'file-extended-attributes (list filename)))))
 
       (with-parsed-tramp-file-name (if t1 filename newname) nil
+	(unless (file-exists-p filename)
+	  (tramp-error
+	   v tramp-file-missing "No such file or directory" filename))
 	(when (and (not ok-if-already-exists) (file-exists-p newname))
 	  (tramp-error v 'file-already-exists newname))
 	(when (and (file-directory-p newname)
@@ -2502,6 +2518,8 @@ The method used must be an out-of-band method."
   "Like `make-directory' for Tramp files."
   (setq dir (expand-file-name dir))
   (with-parsed-tramp-file-name dir nil
+    (when (and (null parents) (file-exists-p dir))
+      (tramp-error v 'file-already-exists "Directory already exists %s" dir))
     ;; When PARENTS is non-nil, DIR could be a chain of non-existent
     ;; directories a/b/c/...  Instead of checking, we simply flush the
     ;; whole cache.
@@ -3663,7 +3681,7 @@ Fall back to normal file name handler if no Tramp handler exists."
 	p))))
 
 (defun tramp-sh-gio-monitor-process-filter (proc string)
-  "Read output from \"gio monitor\" and add corresponding file-notify events."
+  "Read output from \"gio monitor\" and add corresponding `file-notify' events."
   (let ((events (process-get proc 'events))
 	(remote-prefix
 	 (with-current-buffer (process-buffer proc)
@@ -3723,7 +3741,7 @@ Fall back to normal file name handler if no Tramp handler exists."
 
 (defun tramp-sh-gvfs-monitor-dir-process-filter (proc string)
   "Read output from \"gvfs-monitor-dir\" and add corresponding \
-file-notify events."
+`file-notify' events."
   (let ((events (process-get proc 'events))
 	(remote-prefix
 	 (with-current-buffer (process-buffer proc)
@@ -3773,7 +3791,7 @@ file-notify events."
     (process-put proc 'rest-string string)))
 
 (defun tramp-sh-inotifywait-process-filter (proc string)
-  "Read output from \"inotifywait\" and add corresponding file-notify events."
+  "Read output from \"inotifywait\" and add corresponding `file-notify' events."
   (let ((events (process-get proc 'events)))
     (tramp-message proc 6 "%S\n%s" proc string)
     (dolist (line (split-string string "[\n\r]+" 'omit))
@@ -3893,11 +3911,11 @@ hosts, or files, disagree."
 
 (defun tramp-find-executable
   (vec progname dirlist &optional ignore-tilde ignore-path)
-  "Searches for PROGNAME in $PATH and all directories mentioned in DIRLIST.
+  "Search for PROGNAME in $PATH and all directories mentioned in DIRLIST.
 First arg VEC specifies the connection, PROGNAME is the program
 to search for, and DIRLIST gives the list of directories to
 search.  If IGNORE-TILDE is non-nil, directory names starting
-with `~' will be ignored. If IGNORE-PATH is non-nil, searches
+with `~' will be ignored.  If IGNORE-PATH is non-nil, searches
 only in DIRLIST.
 
 Returns the absolute file name of PROGNAME, if found, and nil otherwise.
@@ -3951,7 +3969,7 @@ This function expects to be in the right *tramp* buffer."
 ;; send it.  This is likely not due to PATH_MAX, but PIPE_BUF.  We
 ;; check it, and use a temporary file in case of.  See Bug#33781.
 (defun tramp-set-remote-path (vec)
-  "Sets the remote environment PATH to existing directories.
+  "Set the remote environment PATH to existing directories.
 I.e., for each directory in `tramp-remote-path', it is tested
 whether it exists and if so, it is added to the environment
 variable PATH."
@@ -4044,7 +4062,7 @@ file exists and nonzero exit status otherwise."
     extra-args))
 
 (defun tramp-open-shell (vec shell)
-  "Opens shell SHELL."
+  "Open shell SHELL."
   (with-tramp-progress-reporter
       vec 5 (format-message "Opening remote shell `%s'" shell)
     ;; Find arguments for this shell.
@@ -4098,7 +4116,7 @@ file exists and nonzero exit status otherwise."
      (tramp-get-connection-process vec) "remote-shell" shell)))
 
 (defun tramp-find-shell (vec)
-  "Opens a shell on the remote host which groks tilde expansion."
+  "Open a shell on the remote host which groks tilde expansion."
   (with-current-buffer (tramp-get-buffer vec)
     (let ((default-shell (tramp-get-method-parameter vec 'tramp-remote-shell))
 	  shell)
@@ -4877,9 +4895,9 @@ connection if a previous connection has died for some reason."
 			   (tramp-get-connection-buffer vec)
 			   (append
 			    (list tramp-encoding-shell)
+			    (and extra-args (split-string extra-args))
 			    (and tramp-encoding-command-interactive
-				 (list tramp-encoding-command-interactive))
-			    (and extra-args (split-string extra-args)))))))
+				 (list tramp-encoding-command-interactive)))))))
 
 		;; Set sentinel and query flag.  Initialize variables.
 		(set-process-sentinel p #'tramp-process-sentinel)
@@ -5095,8 +5113,8 @@ function waits for output unless NOOUTPUT is set."
 (defun tramp-send-command-and-check
   (vec command &optional subshell dont-suppress-err)
   "Run COMMAND and check its exit status.
-Sends `echo $?' along with the COMMAND for checking the exit status.
-If COMMAND is nil, just sends `echo $?'.  Returns t if the exit
+Send `echo $?' along with the COMMAND for checking the exit status.
+If COMMAND is nil, just send `echo $?'.  Return t if the exit
 status is 0, and nil otherwise.
 
 If the optional argument SUBSHELL is non-nil, the command is
@@ -5248,7 +5266,7 @@ Return ATTR."
     attr))
 
 (defun tramp-shell-case-fold (string)
-  "Converts STRING to shell glob pattern which ignores case."
+  "Convert STRING to shell glob pattern which ignores case."
   (mapconcat
    (lambda (c)
      (if (equal (downcase c) (upcase c))
@@ -5292,7 +5310,7 @@ Return ATTR."
 ;; Variables local to connection.
 
 (defun tramp-get-remote-path (vec)
-  "Compile list of remote directories for $PATH.
+  "Compile list of remote directories for PATH.
 Nonexistent directories are removed from spec."
   (with-current-buffer (tramp-get-connection-buffer vec)
     ;; Expand connection-local variables.

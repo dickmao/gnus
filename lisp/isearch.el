@@ -1049,8 +1049,8 @@ Type \\[isearch-occur] to run `occur' that shows\
  the last search string.
 Type \\[isearch-highlight-regexp] to run `highlight-regexp'\
  that highlights the last search string.
-Type \\[isearch-highlight-lines-matching-regexp] to run
- `highlight-lines-matching-regexp'\ that highlights lines
+Type \\[isearch-highlight-lines-matching-regexp] to run\
+ `highlight-lines-matching-regexp' that highlights lines
  matching the last search string.
 
 Type \\[isearch-describe-bindings] to display all Isearch key bindings.
@@ -2541,25 +2541,28 @@ If optional ARG is non-nil, pull in the next ARG characters."
   (interactive "p")
   (isearch-yank-internal (lambda () (forward-char arg) (point))))
 
-(defun isearch--yank-char-or-syntax (syntax-list fn)
+(defun isearch--yank-char-or-syntax (syntax-list fn &optional arg)
   (isearch-yank-internal
    (lambda ()
-     (if (or (memq (char-syntax (or (char-after) 0)) syntax-list)
-             (memq (char-syntax (or (char-after (1+ (point))) 0))
-                   syntax-list))
-	 (funcall fn 1)
-       (forward-char 1))
+     (dotimes (_ arg)
+       (if (or (memq (char-syntax (or (char-after) 0)) syntax-list)
+               (memq (char-syntax (or (char-after (1+ (point))) 0))
+                     syntax-list))
+	   (funcall fn 1)
+         (forward-char 1)))
      (point))))
 
-(defun isearch-yank-word-or-char ()
-  "Pull next character or word from buffer into search string."
-  (interactive)
-  (isearch--yank-char-or-syntax '(?w) 'forward-word))
+(defun isearch-yank-word-or-char (&optional arg)
+  "Pull next character or word from buffer into search string.
+If optional ARG is non-nil, pull in the next ARG characters/words."
+  (interactive "p")
+  (isearch--yank-char-or-syntax '(?w) 'forward-word arg))
 
-(defun isearch-yank-symbol-or-char ()
-  "Pull next character or symbol from buffer into search string."
-  (interactive)
-  (isearch--yank-char-or-syntax '(?w ?_) 'forward-symbol))
+(defun isearch-yank-symbol-or-char (&optional arg)
+  "Pull next character or symbol from buffer into search string.
+If optional ARG is non-nil, pull in the next ARG characters/symbols."
+  (interactive "p")
+  (isearch--yank-char-or-syntax '(?w ?_) 'forward-symbol arg))
 
 (defun isearch-yank-word (&optional arg)
   "Pull next word from buffer into search string.
@@ -2567,17 +2570,18 @@ If optional ARG is non-nil, pull in the next ARG words."
   (interactive "p")
   (isearch-yank-internal (lambda () (forward-word arg) (point))))
 
-(defun isearch-yank-until-char (char)
+(defun isearch-yank-until-char (char &optional arg)
   "Pull everything until next instance of CHAR from buffer into search string.
 Interactively, prompt for CHAR.
+If optional ARG is non-nil, pull until next ARGth instance of CHAR.
 This is often useful for keyboard macros, for example in programming
 languages or markup languages in which CHAR marks a token boundary."
-  (interactive "cYank until character: ")
+  (interactive "cYank until character: \np")
   (isearch-yank-internal
    (lambda () (let ((inhibit-field-text-motion t))
                 (condition-case nil
                     (progn
-                      (search-forward (char-to-string char))
+                      (search-forward (char-to-string char) nil nil arg)
                       (forward-char -1))
                   (search-failed
                    (message "`%c' not found" char)

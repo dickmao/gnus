@@ -1914,7 +1914,7 @@ increase the score of each group you read."
   "x" gnus-summary-limit-to-unread
   "s" gnus-summary-isearch-article
   "\t" gnus-summary-button-forward
-  [backtab] gnus-summary-widget-backward
+  [backtab] gnus-summary-button-backward
   "w" gnus-summary-browse-url
   "t" gnus-summary-toggle-header
   "g" gnus-summary-show-article
@@ -2083,7 +2083,7 @@ increase the score of each group you read."
   "g" gnus-summary-show-article
   "s" gnus-summary-isearch-article
   "\t" gnus-summary-button-forward
-  [backtab] gnus-summary-widget-backward
+  [backtab] gnus-summary-button-backward
   "w" gnus-summary-browse-url
   "P" gnus-summary-print-article
   "S" gnus-sticky-article
@@ -5496,6 +5496,9 @@ or a straight list of headers."
   "Select newsgroup GROUP.
 If READ-ALL is non-nil, all articles in the group are selected.
 If SELECT-ARTICLES, only select those articles from GROUP."
+
+  (when (eq (current-thread) (car (all-threads)))
+    (message "what is gnu-summary-buffer 1? %s (%s)" gnus-summary-buffer (current-buffer)))
   (let* ((entry (gnus-group-entry group))
 	 ;;!!! Dirty hack; should be removed.
 	 (gnus-summary-ignore-duplicates
@@ -8950,7 +8953,7 @@ a non-numeric prefix arg will use nnir to search the entire
 server; without a prefix arg only the current group is
 searched.  If the variable `gnus-refer-thread-use-nnir' is
 non-nil the prefix arg has the reverse meaning.  If no
-backend-specific 'request-thread function is available fetch
+backend-specific `request-thread' function is available fetch
 LIMIT (the numerical prefix) old headers.  If LIMIT is
 non-numeric or nil fetch the number specified by the
 `gnus-refer-thread-limit' variable."
@@ -10241,17 +10244,13 @@ ACTION can be either `move' (the default), `crosspost' or `copy'."
 
 (defun gnus-summary-copy-article (&optional n to-newsgroup select-method)
   "Copy the current article to some other group.
-If TO-NEWSGROUP is string, do not prompt for a newsgroup to copy to.
-When called interactively, if TO-NEWSGROUP is nil, use the value of
-the variable `gnus-move-split-methods' for finding a default target
-newsgroup.
-If SELECT-METHOD is non-nil, do not move to a specific newsgroup, but
-re-spool using this method."
+Arguments have the same meanings as in `gnus-summary-move-article'."
   (interactive "P")
   (gnus-summary-move-article n to-newsgroup select-method 'copy))
 
 (defun gnus-summary-crosspost-article (&optional n)
-  "Crosspost the current article to some other group."
+  "Crosspost the current article to some other group.
+Arguments have the same meanings as in `gnus-summary-move-article'."
   (interactive "P")
   (gnus-summary-move-article n nil nil 'crosspost))
 

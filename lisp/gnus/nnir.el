@@ -317,7 +317,7 @@ If nil this will use `gnus-summary-line-format'."
 (defcustom nnir-retrieve-headers-override-function nil
   "If non-nil, a function that accepts an article list and group
 and populates the `nntp-server-buffer' with the retrieved
-headers.  Must return either 'nov or 'headers indicating the
+headers.  Must return either `nov' or `headers' indicating the
 retrieved header format.
 
 If this variable is nil, or if the provided function returns nil for
@@ -580,7 +580,7 @@ Add an entry here when adding a new search engine.")
 
 (defcustom nnir-method-default-engines  '((nnimap . imap))
   "Alist of default search engines keyed by server method."
-  :version "24.1"
+  :version "27.1"
   :group 'nnir
   :type `(repeat (cons (choice (const nnimap) (const nntp) (const nnspool)
 			       (const nneething) (const nndir) (const nnmbox)
