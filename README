@@ -1,7 +1,7 @@
-Avoid stateful set-buffer if we can use with-current-buffer instead.
+Avoid stateful `set-buffer` if we can use `with-current-buffer` instead.
 
 defvar-local many former defvar's, e.g., `gnus-summary-buffer` and `gnus-article-buffer`.
 
-Deletion `gnus-set-global-variables`
+Deletion `gnus-set-global-variables`.
 
-Deletion `gnus-summary-local-variables`
+Deletion `gnus-summary-local-variables`.
