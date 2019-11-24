@@ -4494,6 +4494,7 @@ commands:
   (setq gnus-article-image-alist nil)
   (setq gnus-article-charset nil)
   (setq gnus-article-ignored-charsets nil)
+  (setq gnus-article-buffer (buffer-name))
 
   ;; Prevent Emacs from displaying non-break space with
   ;; `nobreak-space' face.
@@ -4644,12 +4645,21 @@ If ALL-HEADERS is non-nil, no headers are hidden."
                    ;; Seems like a new article has been selected.
                    ;; `gnus-current-article' must be an article number.
                    (push article gnus-newsgroup-history)
-                   (setq gnus-last-article gnus-current-article
-                         gnus-current-article article
-                         gnus-current-headers
-                         (gnus-summary-article-header gnus-current-article)
-                         gnus-article-current
-                         (cons gnus-newsgroup-name gnus-current-article))
+                   ;; TODO: a more elegant way to replicate former globals
+                   (cl-macrolet ((set-gv
+                                  (var val buffer)
+                                  `(setf (buffer-local-value ,var ,buffer)
+                                         ,val)))
+                     (dolist (buffer `(,(get-buffer gnus-article-buffer)
+                                       ,(get-buffer summary)))
+                       (set-gv 'gnus-last-article gnus-current-article buffer)
+                       (set-gv 'gnus-current-article article buffer)
+                       (set-gv 'gnus-current-headers
+                               (gnus-summary-article-header article)
+                               buffer)
+                       (set-gv 'gnus-article-current
+                               (cons gnus-newsgroup-name article)
+                               buffer)))
                    (unless (mail-header-p gnus-current-headers)
                      (setq gnus-current-headers nil))
                    (gnus-summary-goto-subject gnus-current-article)
@@ -6901,16 +6911,16 @@ the entire article will be yanked."
   (interactive)
   (let ((article (cdr gnus-article-current))
 	contents)
-      (if (not (and transient-mark-mode mark-active))
-	  (with-current-buffer gnus-summary-buffer
-	    (gnus-summary-followup (list (list article))))
-	(setq contents (buffer-substring (point) (mark t)))
-	;; Deactivate active regions.
-	(when transient-mark-mode
-	  (setq mark-active nil))
-	(with-current-buffer gnus-summary-buffer
-	  (gnus-summary-followup
-	   (list (list article contents)))))))
+    (if (not (and transient-mark-mode mark-active))
+        (with-current-buffer gnus-summary-buffer
+          (gnus-summary-followup (list (list article))))
+      (setq contents (buffer-substring (point) (mark t)))
+      ;; Deactivate active regions.
+      (when transient-mark-mode
+        (setq mark-active nil))
+      (with-current-buffer gnus-summary-buffer
+        (gnus-summary-followup
+         (list (list article contents)))))))
 
 (defun gnus-article-hide (&optional arg force)
   "Hide all the gruft in the current article.
