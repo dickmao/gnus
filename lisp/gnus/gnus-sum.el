@@ -7623,7 +7623,6 @@ If ALL-HEADERS is non-nil, show all header fields.  If FORCE is
 non-nil, the article will be re-fetched even if it already present in
 the article buffer.  If PSEUDO is non-nil, pseudo-articles will also
 be displayed."
-  ;; Make sure we are in the summary buffer to work around bbdb bug.
   (gnus-summary-assume-in-summary
     (let ((article (or article (gnus-summary-article-number)))
           (all-headers (and all-headers t)) ; Must be t or nil.
