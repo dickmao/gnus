@@ -3959,7 +3959,8 @@ effects."
                    ;; Don't select any articles.
                    (gnus-summary-position-point)
                    (gnus-set-mode-line 'summary)
-                   (gnus-configure-windows 'summary 'force))
+                   (save-excursion
+                     (gnus-configure-windows 'summary 'force)))
                  (when (and gnus-auto-center-group
                             (get-buffer-window gnus-group-buffer t))
                    ;; Gotta use windows, because recenter does weird stuff if
