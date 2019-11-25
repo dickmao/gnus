@@ -1788,7 +1788,10 @@ All FNS must finish before MTX is released."
                    (gnus-run-hooks 'gnus-after-getting-new-news-hook)
                    (gnus-group-list-groups))
                  (and (numberp level)
-                      (max (car gnus-group-list-mode) level)))))
+                      (max (or (and (numberp (car gnus-group-list-mode))
+                                    (car gnus-group-list-mode))
+                               (gnus-group-default-level))
+                           level)))))
       (mapc (lambda (elem)
               (cl-destructuring-bind
                 (method _type infos
