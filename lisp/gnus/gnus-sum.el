@@ -3935,7 +3935,7 @@ effects."
                      ;; Return nil from this function.
                      nil)
                  ;; Hide conversation thread subtrees.  We cannot do this in
-                 ;; gnus-summary-prepare-hook since kill processing may not
+                 ;; `gnus-summary-prepared-hook' since kill processing may not
                  ;; work with hidden articles.
                  (gnus-summary-maybe-hide-threads)
                  (when kill-buffer
