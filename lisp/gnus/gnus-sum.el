@@ -1380,7 +1380,6 @@ the normal Gnus MIME machinery."
 (defvar-local gnus-scores-exclude-files nil)
 (defvar-local gnus-page-broken nil)
 
-(defvar-local gnus-original-article nil)
 (defvar-local gnus-newsgroup-process-stack nil)
 
 (defvar gnus-thread-indent-array nil)

@@ -669,7 +669,7 @@ a news."
 	       (or (gnus-group-group-name) ""))
 	   ""))
 	;; make sure last viewed article doesn't affect posting styles:
-	(gnus-article-copy))
+	gnus-article-copy)
     (gnus-post-news 'post gnus-newsgroup-name nil nil nil nil
 		    (string= gnus-newsgroup-name ""))))
 
@@ -891,6 +891,7 @@ header line with the old Message-ID."
 	end beg)
     (unless (gnus-buffer-live-p article-buffer)
       (error "Can't find any article buffer"))
+    (gnus-msg-inherit-variables (get-buffer article-buffer) gnus-article-copy)
     (with-current-buffer article-buffer
       (let ((gnus-newsgroup-charset (or gnus-article-charset
                                         gnus-newsgroup-charset))
@@ -939,17 +940,17 @@ header line with the old Message-ID."
                    (delq 'article-decode-charset
                          (copy-sequence gnus-article-decode-hook)))
                   (rfc2047-quote-decoded-words-containing-tspecials t))
-              (run-hooks 'gnus-article-decode-hook)))))
-      (gnus-msg-inherit-variables (current-buffer) gnus-article-copy))
+              (run-hooks 'gnus-article-decode-hook))))))
     gnus-article-copy))
 
-(defmacro gnus-msg-preserve-variables (&rest body)
+(defmacro gnus-msg-preserve-variables (parent-buffer &rest body)
+  (declare (indent 1))
   "If BODY changes the current buffer, ensure important variables preserved."
   (declare (indent 0))
-  `(let ((parent-buffer (current-buffer)))
+  `(progn
      ,@body
-     (unless (eq parent-buffer (current-buffer))
-       (gnus-msg-inherit-variables parent-buffer (current-buffer)))))
+     (unless (eq ,parent-buffer (current-buffer))
+       (gnus-msg-inherit-variables ,parent-buffer (current-buffer)))))
 
 (defun gnus-msg-inherit-variables (source-buffer dest-buffer)
   "Transfer formerly global variables from SOURCE-BUFFER to DEST-BUFFER."
@@ -1012,14 +1013,14 @@ header line with the old Message-ID."
 		     (and (not (gnus-virtual-group-p pgroup)) group)))
 	      (set-buffer gnus-article-copy)
 	      (gnus-msg-treat-broken-reply-to)
-	      (message-followup (if (or newsgroup-p force-news)
-				    (if (save-restriction
-					  (article-narrow-to-head)
-					  (message-fetch-field "newsgroups"))
-					nil
-				      "")
-				  to-group))
-              (gnus-msg-inherit-variables parent-buffer (current-buffer)))
+              (gnus-msg-preserve-variables parent-buffer
+                (message-followup (if (or newsgroup-p force-news)
+                                      (if (save-restriction
+                                            (article-narrow-to-head)
+                                            (message-fetch-field "newsgroups"))
+                                          nil
+                                        "")
+                                    to-group))))
 	  ;; The is mail.
 	  (if post
 	      (progn
@@ -1199,7 +1200,7 @@ VERY-WIDE is a list of other articles to reply to."
             (erase-buffer)
             (insert very-wide-headers))
           (goto-char (point-max)))
-        (gnus-msg-preserve-variables
+        (gnus-msg-preserve-variables (current-buffer)
           (mml-quote-region (point) (point-max))
           (message-reply nil wide))
 	(when yank

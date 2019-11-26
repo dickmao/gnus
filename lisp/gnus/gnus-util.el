@@ -1269,6 +1269,10 @@ ARG is passed to the first function."
        (or (string-equal x y)
 	   (string-equal (downcase x) (downcase y)))))
 
+(defmacro gnus-assign-former-global (var val buffer)
+  "Will rename this."
+  `(setf (buffer-local-value ,var ,buffer) ,val))
+
 (defcustom gnus-use-byte-compile t
   "If non-nil, byte-compile crucial run-time code.
 Setting it to nil has no effect after the first time `gnus-byte-compile'
