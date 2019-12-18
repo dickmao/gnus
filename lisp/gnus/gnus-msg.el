@@ -569,8 +569,8 @@ instead."
   (when gnus-agent
     (add-hook 'message-header-hook 'gnus-agent-possibly-save-gcc nil t))
   (setq message-post-method
-	`(lambda (&optional arg)
-	   (gnus-post-method arg ,gnus-newsgroup-name)))
+        `(lambda (&optional arg)
+           (gnus-post-method arg ,(buffer-local-value 'gnus-newsgroup-name (get-buffer buffer)))))
   (message-add-action
    `(progn
       (setq gnus-current-window-configuration ',winconf-name)

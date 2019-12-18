@@ -7098,24 +7098,23 @@ If given a prefix, show the hidden text instead."
       ;; Take the article from the original article buffer
       ;; and place it in the buffer it's supposed to be in.
       (when (and (get-buffer gnus-article-buffer)
-		 (equal (buffer-name (current-buffer))
-			(buffer-name (get-buffer gnus-article-buffer))))
-	(save-excursion
-	  (if (get-buffer gnus-original-article-buffer)
-	      (set-buffer gnus-original-article-buffer)
-	    (set-buffer (gnus-get-buffer-create gnus-original-article-buffer))
-	    (buffer-disable-undo)
-	    (setq major-mode 'gnus-original-article-mode)
-	    (setq buffer-read-only t))
-	  (let ((inhibit-read-only t))
-	    (erase-buffer)
-	    (insert-buffer-substring gnus-article-buffer))
-	  (setq gnus-original-group-and-article (cons group article)))
-
-	;; Decode charsets.
-	(run-hooks 'gnus-article-decode-hook)
-	;; Mark article as decoded or not.
-	(setq gnus-article-decoded-p gnus-article-decode-hook))
+                 (equal (buffer-name (current-buffer))
+                        (buffer-name (get-buffer gnus-article-buffer))))
+        (unless (get-buffer gnus-original-article-buffer)
+          (with-current-buffer (gnus-get-buffer-create gnus-original-article-buffer)
+            (buffer-disable-undo)
+            (setq major-mode 'gnus-original-article-mode)
+            (setq buffer-read-only t)))
+        (let ((article-buffer gnus-article-buffer))
+          (with-current-buffer (get-buffer gnus-original-article-buffer)
+            (let ((inhibit-read-only t))
+              (erase-buffer)
+              (insert-buffer-substring article-buffer))
+            (setq gnus-original-group-and-article (cons group article))))
+        ;; Decode charsets.
+        (run-hooks 'gnus-article-decode-hook)
+        ;; Mark article as decoded or not.
+        (setq gnus-article-decoded-p gnus-article-decode-hook))
 
       ;; Update sparse articles.
       (when (and do-update-line
