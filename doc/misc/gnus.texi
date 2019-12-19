@@ -7122,18 +7122,6 @@ result in a new thread.
 This is a number that says how much each sub-thread should be indented.
 The default is 4.
 
-@item gnus-sort-gathered-threads-function
-@vindex gnus-sort-gathered-threads-function
-Sometimes, particularly with mailing lists, the order in which mails
-arrive locally is not necessarily the same as the order in which they
-arrived on the mailing list.  Consequently, when sorting sub-threads
-using the default @code{gnus-thread-sort-by-number}, responses can end
-up appearing before the article to which they are responding to.
-Setting this variable to an alternate value
-(e.g., @code{gnus-thread-sort-by-date}), in a group's parameters or in an
-appropriate hook (e.g., @code{gnus-summary-generate-hook}) can produce a
-more logical sub-thread ordering in such instances.
-
 @end table
 
 

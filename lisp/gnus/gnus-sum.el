@@ -1384,8 +1384,6 @@ the normal Gnus MIME machinery."
 
 (defvar gnus-thread-indent-array nil)
 (defvar gnus-thread-indent-array-level gnus-thread-indent-level)
-(defvar gnus-sort-gathered-threads-function #'gnus-thread-sort-by-number
-  "Function called to sort the articles within a thread after it has been gathered together.")
 
 (defvar gnus-summary-save-parts-type-history nil)
 (defvar gnus-summary-save-parts-last-directory mm-default-directory)
@@ -4013,10 +4011,9 @@ effects."
     (when gnus-newsgroup-headers
       (gnus-summary-prepare-threads
        (if gnus-show-threads
-	   (gnus-sort-gathered-threads
-	    (funcall gnus-summary-thread-gathering-function
-		     (gnus-sort-threads
-		      (gnus-cut-threads (gnus-make-threads)))))
+	   (gnus-sort-threads
+            (funcall gnus-summary-thread-gathering-function
+                     (gnus-cut-threads (gnus-make-threads))))
 	 ;; Unthreaded display.
 	 (gnus-sort-articles gnus-newsgroup-headers))))
     (setq gnus-newsgroup-data (nreverse gnus-newsgroup-data))
@@ -4131,16 +4128,6 @@ effects."
 	    (setcdr prev (cdr threads))
 	    (setq threads prev))))
       (setq prev threads)
-      (setq threads (cdr threads)))
-    result))
-
-(defun gnus-sort-gathered-threads (threads)
-  "Sort subthreads inside each gathered thread by `gnus-sort-gathered-threads-function'."
-  (let ((result threads))
-    (while threads
-      (when (stringp (caar threads))
-	(setcdr (car threads)
-		(sort (cdar threads) gnus-sort-gathered-threads-function)))
       (setq threads (cdr threads)))
     result))
 
@@ -11997,8 +11984,6 @@ Argument REVERSE means reverse order."
 	      thread
 	    (lambda (t1 t2)
 	       (funcall thread t2 t1))))
-	 (gnus-sort-gathered-threads-function
-	  gnus-thread-sort-functions)
 	 (gnus-article-sort-functions
 	  (if (not reverse)
 	      article
