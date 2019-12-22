@@ -1622,22 +1622,23 @@ backend check whether the group actually exists."
          ,@forms))))
 
 (defun gnus-thread-body (thread-name mtx working fns)
-  (with-mutex mtx
-    (with-current-buffer working
-      (nnheader-message 9 "gnus-thread-body: start %s <%s>"
-                        thread-name (current-buffer))
-      (let (gnus-run-thread--subresult
-            current-fn
-            (nntp-server-buffer working))
-        (condition-case err
-            (dolist (fn fns)
-              (setq current-fn fn)
-              (setq gnus-run-thread--subresult (funcall fn)))
-          (error (nnheader-message
-                  4 "gnus-thread-body: '%s' in %S"
-                  (error-message-string err) current-fn)))))
-    (kill-buffer working)
-    (nnheader-message 9 "gnus-thread-body: finish %s" thread-name)))
+  (let ((inhibit-debugger t))
+    (with-mutex mtx
+      (with-current-buffer working
+        (nnheader-message 9 "gnus-thread-body: start %s <%s>"
+                          thread-name (current-buffer))
+        (let (gnus-run-thread--subresult
+              current-fn
+              (nntp-server-buffer working))
+          (condition-case err
+              (dolist (fn fns)
+                (setq current-fn fn)
+                (setq gnus-run-thread--subresult (funcall fn)))
+            (error (nnheader-message
+                    4 "gnus-thread-body: '%s' in %S"
+                    (error-message-string err) current-fn)))))
+      (kill-buffer working)
+      (nnheader-message 9 "gnus-thread-body: finish %s" thread-name))))
 
 (defun gnus-run-thread (mtx thread-group &rest fns)
   "MTX, if non-nil, is the mutex for the new thread.
