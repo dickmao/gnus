@@ -1034,8 +1034,8 @@ header line with the old Message-ID."
 			message-send-actions)))
 	    (set-buffer gnus-article-copy)
 	    (gnus-msg-treat-broken-reply-to)
-	    (message-wide-reply to-address)
-            (gnus-msg-inherit-variables parent-buffer (current-buffer))))
+            (gnus-msg-preserve-variables parent-buffer
+              (message-wide-reply to-address))))
 	(when yank
 	  (gnus-inews-yank-articles yank))))))
 
