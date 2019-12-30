@@ -106,6 +106,9 @@ This is a compatibility function for different Emacsen."
 (put 'gnus-eval-in-buffer-window 'lisp-indent-function 1)
 (put 'gnus-eval-in-buffer-window 'edebug-form-spec '(form body))
 
+(defmacro gnus-push-end (elt place)
+  `(push ,elt (if (consp ,place) (cdr (last ,place)) ,place)))
+
 (defsubst gnus-goto-char (point)
   (and point (goto-char point)))
 
@@ -562,10 +565,12 @@ If N, return the Nth ancestor instead."
 	(when (string-match "\\(<[^<]+>\\)[ \t]*\\'" references)
 	  (match-string 1 references))))))
 
-(defsubst gnus-buffer-live-p (buffer)
+(defsubst gnus-buffer-live-p (buffer-or-name)
   "If BUFFER names a live buffer, return its object; else nil."
-  (and buffer (buffer-live-p (setq buffer (get-buffer buffer)))
-       buffer))
+  (when-let* ((buffer-or-name buffer-or-name)
+              (buffer (get-buffer buffer-or-name)))
+    (when (buffer-live-p buffer)
+      buffer)))
 
 (define-obsolete-function-alias 'gnus-buffer-exists-p
   'gnus-buffer-live-p "27.1")
@@ -617,13 +622,17 @@ If N, return the Nth ancestor instead."
 
 (defun gnus-set-work-buffer ()
   "Put point in the empty Gnus work buffer."
-  (if (get-buffer gnus-work-buffer)
-      (progn
-	(set-buffer gnus-work-buffer)
-	(erase-buffer))
-    (set-buffer (gnus-get-buffer-create gnus-work-buffer))
-    (kill-all-local-variables)
-    (mm-enable-multibyte)))
+  (let ((lvars (buffer-local-variables)))
+    (ignore-errors (kill-buffer gnus-work-buffer))
+    (set-buffer (get-buffer-create gnus-work-buffer))
+    (mm-enable-multibyte)
+    (mapc (lambda (v)
+            (ignore-errors ;; in case var is read-only
+              (if (symbolp v)
+                  (makunbound v)
+                (set (make-local-variable (car v)) (cdr v)))))
+          lvars)
+    (setq buffer-read-only nil)))
 
 (defmacro gnus-group-real-name (group)
   "Find the real name of a foreign newsgroup."
