@@ -255,7 +255,9 @@ and `gnus-buffer-configuration'."
      (when-let* ((what (cdr (assq (car split) gnus-window-to-buffer)))
                  (buf (gnus-window-to-buffer-helper what))
                  (dead-buf (and (bufferp buf) (not (buffer-live-p buf)))))
-       (if-let ((group (gnus-group-name-at-point)))
+       (if-let* ((live-buf (gnus-buffer-live-p gnus-group-buffer))
+                 (group (with-current-buffer live-buf
+                          (gnus-group-name-at-point))))
            (setcar split
                    (gnus-summary-buffer-name group))
          (error "No group at point")))

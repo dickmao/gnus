@@ -1380,13 +1380,10 @@ the normal Gnus MIME machinery."
 (defvar-local gnus-scores-exclude-files nil)
 (defvar-local gnus-page-broken nil)
 
-(defvar-local gnus-original-article nil)
 (defvar-local gnus-newsgroup-process-stack nil)
 
 (defvar gnus-thread-indent-array nil)
 (defvar gnus-thread-indent-array-level gnus-thread-indent-level)
-(defvar gnus-sort-gathered-threads-function #'gnus-thread-sort-by-number
-  "Function called to sort the articles within a thread after it has been gathered together.")
 
 (defvar gnus-summary-save-parts-type-history nil)
 (defvar gnus-summary-save-parts-last-directory mm-default-directory)
@@ -3415,13 +3412,11 @@ Return non-nil if caller must prepare the summary buffer."
   (let ((name (gnus-summary-buffer-name group)))
     (if (gnus-buffer-live-p name)
         (with-current-buffer name
-          (cl-assert (string= gnus-newsgroup-name group))
-          (cl-assert (string= (buffer-name gnus-summary-buffer) name))
           (not gnus-newsgroup-prepared))
       (with-current-buffer (gnus-get-buffer-create name)
-        (gnus-summary-mode)
         (setq gnus-newsgroup-name group)
         (set-default 'gnus-newsgroup-name gnus-newsgroup-name)
+        (gnus-summary-mode)
         (when (gnus-group-quit-config gnus-newsgroup-name)
           (set (make-local-variable 'gnus-single-article-buffer) nil))
         (turn-on-gnus-mailing-list-mode)
@@ -3935,7 +3930,7 @@ effects."
                      ;; Return nil from this function.
                      nil)
                  ;; Hide conversation thread subtrees.  We cannot do this in
-                 ;; gnus-summary-prepare-hook since kill processing may not
+                 ;; `gnus-summary-prepared-hook' since kill processing may not
                  ;; work with hidden articles.
                  (gnus-summary-maybe-hide-threads)
                  (when kill-buffer
@@ -3959,7 +3954,8 @@ effects."
                    ;; Don't select any articles.
                    (gnus-summary-position-point)
                    (gnus-set-mode-line 'summary)
-                   (gnus-configure-windows 'summary 'force))
+                   (save-excursion
+                     (gnus-configure-windows 'summary 'force)))
                  (when (and gnus-auto-center-group
                             (get-buffer-window gnus-group-buffer t))
                    ;; Gotta use windows, because recenter does weird stuff if
@@ -4015,10 +4011,9 @@ effects."
     (when gnus-newsgroup-headers
       (gnus-summary-prepare-threads
        (if gnus-show-threads
-	   (gnus-sort-gathered-threads
-	    (funcall gnus-summary-thread-gathering-function
-		     (gnus-sort-threads
-		      (gnus-cut-threads (gnus-make-threads)))))
+	   (gnus-sort-threads
+            (funcall gnus-summary-thread-gathering-function
+                     (gnus-cut-threads (gnus-make-threads))))
 	 ;; Unthreaded display.
 	 (gnus-sort-articles gnus-newsgroup-headers))))
     (setq gnus-newsgroup-data (nreverse gnus-newsgroup-data))
@@ -4133,16 +4128,6 @@ effects."
 	    (setcdr prev (cdr threads))
 	    (setq threads prev))))
       (setq prev threads)
-      (setq threads (cdr threads)))
-    result))
-
-(defun gnus-sort-gathered-threads (threads)
-  "Sort subthreads inside each gathered thread by `gnus-sort-gathered-threads-function'."
-  (let ((result threads))
-    (while threads
-      (when (stringp (caar threads))
-	(setcdr (car threads)
-		(sort (cdar threads) gnus-sort-gathered-threads-function)))
       (setq threads (cdr threads)))
     result))
 
@@ -7622,7 +7607,6 @@ If ALL-HEADERS is non-nil, show all header fields.  If FORCE is
 non-nil, the article will be re-fetched even if it already present in
 the article buffer.  If PSEUDO is non-nil, pseudo-articles will also
 be displayed."
-  ;; Make sure we are in the summary buffer to work around bbdb bug.
   (gnus-summary-assume-in-summary
     (let ((article (or article (gnus-summary-article-number)))
           (all-headers (and all-headers t)) ; Must be t or nil.
@@ -12000,8 +11984,6 @@ Argument REVERSE means reverse order."
 	      thread
 	    (lambda (t1 t2)
 	       (funcall thread t2 t1))))
-	 (gnus-sort-gathered-threads-function
-	  gnus-thread-sort-functions)
 	 (gnus-article-sort-functions
 	  (if (not reverse)
 	      article
