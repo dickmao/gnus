@@ -502,17 +502,22 @@ the line could be found."
   "Coding system used in file backends of Gnus.")
 (defvar nnheader-callback-function nil)
 
-(defun nnheader-init-server-buffer ()
-  "Initialize the Gnus-backend communication buffer."
-  (unless (gnus-buffer-live-p nntp-server-buffer)
-    (setq nntp-server-buffer (get-buffer-create " *nntpd*")))
-  (with-current-buffer nntp-server-buffer
+(defsubst nnheader-prep-server-buffer (buffer)
+  "Refactor \"setting the table\" of BUFFER for `nnheader-init-server-buffer' and
+`gnus-instantiate-server-buffer'."
+  (with-current-buffer buffer
     (erase-buffer)
     (mm-enable-multibyte)
     (kill-all-local-variables)
     (setq case-fold-search t)		;Should ignore case.
     (set (make-local-variable 'nntp-process-response) nil)
     t))
+
+(defun nnheader-init-server-buffer ()
+  "Initialize the Gnus-backend communication buffer."
+  (unless (gnus-buffer-live-p nntp-server-buffer)
+    (setq nntp-server-buffer (get-buffer-create " *nntpd*")))
+  (nnheader-prep-server-buffer nntp-server-buffer))
 
 ;;; Various functions the backends use.
 
