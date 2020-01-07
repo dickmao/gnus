@@ -1,4 +1,4 @@
-;;; gnus-start.el --- startup functions for Gnus -*- lexical-binding:t -*-
+;;; gnus-start.el --- startup functions for Gnus
 
 ;; Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
