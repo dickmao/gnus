@@ -4792,20 +4792,21 @@ corresponding connection was closed.  */)
   if (! NILP (process))
     {
       CHECK_PROCESS (process);
-      struct Lisp_Process *proc = XPROCESS (process);
+      /* FIXME!!!!!!!!!!!!!!!!!!! RESTORE */
+      /* struct Lisp_Process *proc = XPROCESS (process); */
 
-      /* Can't wait for a process that is dedicated to a different
-	 thread.  */
-      if (!NILP (proc->thread) && !EQ (proc->thread, Fcurrent_thread ()))
-	{
-	  Lisp_Object proc_thread_name = XTHREAD (proc->thread)->name;
+      /* /\* Can't wait for a process that is dedicated to a different */
+      /*    thread.  *\/ */
+      /* if (!NILP (proc->thread) && !EQ (proc->thread, Fcurrent_thread ())) */
+      /*   { */
+      /*     Lisp_Object proc_thread_name = XTHREAD (proc->thread)->name; */
 
-	  error ("Attempt to accept output from process %s locked to thread %s",
-		 SDATA (proc->name),
-		 STRINGP (proc_thread_name)
-		 ? SDATA (proc_thread_name)
-		 : SDATA (Fprin1_to_string (proc->thread, Qt)));
-	}
+      /*     error ("Attempt to accept output from process %s locked to thread %s", */
+      /*   	 SDATA (proc->name), */
+      /*   	 STRINGP (proc_thread_name) */
+      /*   	 ? SDATA (proc_thread_name) */
+      /*   	 : SDATA (Fprin1_to_string (proc->thread, Qt))); */
+      /*   } */
     }
   else
     just_this_one = Qnil;
