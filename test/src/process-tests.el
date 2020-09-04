@@ -103,6 +103,15 @@
 	      (goto-char (point-min))
 	      (looking-at "hello stderr!")))))
 
+(ert-deftest process-test-stopped-pipe ()
+  (skip-unless (executable-find "cat"))
+  (with-temp-buffer
+    (let ((proc (make-pipe-process :name "pipe" :buffer (current-buffer)
+                                   :command '("cat") :stop t)))
+      (unwind-protect
+          (should (list-processes--refresh))
+        (delete-process proc)))))
+
 (ert-deftest process-test-stderr-filter ()
   (skip-unless (executable-find "bash"))
   (let* ((sentinel-called nil)
