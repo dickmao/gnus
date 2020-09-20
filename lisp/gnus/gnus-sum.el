@@ -11765,8 +11765,7 @@ Returns nil if no threads were there to be hidden."
 		(overlay-put ol 'evaporate t)))
 	    (gnus-summary-goto-subject article)
             (when (> start (point))
-              (message "Hiding the thread moved us backwards, aborting!")
-              (goto-char (point-max))))
+              (goto-char starteol)))
 	(goto-char start)
 	nil))))
 
